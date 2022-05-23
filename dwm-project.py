@@ -8,6 +8,7 @@ import re
 WIKI_PREFIX = "http://en.wikipedia.org"
 EXAMPLE_PREFIX = "http://example.org/"
 MORE_THAN_ONE_CAPITAL = ["Bolivia", "Eswatini", "South Africa", "Malaysia", "Sri Lanka"]
+PROBLEMATIC_CAPITAL = []
 graph = rdflib.Graph()
 countries_dict = {}
 
@@ -15,6 +16,7 @@ countries_dict = {}
 
 
 def fixing_prefix(s):
+    s = s.lstrip()
     res = re.sub('\s+', '_', s)
     return rdflib.URIRef(f'{EXAMPLE_PREFIX}{res}')
 
@@ -27,6 +29,14 @@ def first_letter(s):
 
 
 def get_wiki_url(name):
+    if name == "DR Congo":
+        name = "Democratic Republic of the Congo"
+    if name == "Palestine":
+        name = "State of Palestine"
+    if name == "Georgia":
+        name = "Georgia (country)"
+    if name == "Micronesia":
+        name = "Federated_States_of_Micronesia"
     name = name.replace(" ", "_")
     return requests.get(WIKI_PREFIX + "/wiki/" + name)
 
@@ -36,8 +46,11 @@ def get_list_of_countries():
     doc = lxml.html.fromstring(res.content)
     countries = []
     for i in range(2, 235):
-        countries.append(doc.xpath(
-            "//*[@id='mw-content-text']/div[1]/table/tbody/tr[" + str(i) + "]/td[1]/descendant::a[1]//text()")[0])
+        name = doc.xpath(
+            "//*[@id='mw-content-text']/div[1]/table/tbody/tr[" + str(i) + "]/td[1]/descendant::a[1]//text()")[0]
+        if name == "Congo":
+            name = "DR Congo"
+        countries.append(name)
     return countries
 
 
@@ -56,7 +69,7 @@ def get_personal_info(name):
 
 
 def get_government_type(info_box):
-    gov = info_box[0].xpath("//tbody/tr[./descendant::a[contains(text(), 'Government')]]/td/a/text()")
+    gov = info_box[0].xpath("//tbody/tr[./descendant::*[contains(text(), 'Government')]]/td/a/text()")
     res = set()
     for entry in gov:
         res.add(fixing_prefix(entry))
@@ -85,18 +98,52 @@ def get_pm(info_box):
         return None
 
 
-def get_population(info_box):
+def get_population(info_box, name):
     res = set()
-    res.add(fixing_prefix(info_box[0].xpath("//tbody//td[./descendant::a["
-                                            "@href='/wiki/List_of_countries_and_dependencies_by_population']]/"
-                                            "text()")[0]))
+    population = info_box[0].xpath("//tbody/tr[.//text() = 'Population']/following::tr[1]"
+                                            "/*//text()")[1]
+    if population == '[8]':
+        print(name)
+        print("error")
+    population = population.replace('(', '').replace(')', '').replace("'", '')
+    res.add(fixing_prefix(population))
+    print(population)
+    ##check czech republic
+    #res.add(fixing_prefix(info_box[0].xpath("//tbody/tr[./th/a[contains(text(), 'Population')]]/following::tr[1]"
+    #                                        "/td/text()")[0]))
     return res
 
 
-def get_area(info_box):
+def get_area(info_box, name):
     res = set()
-    res.add(fixing_prefix(info_box[0].xpath("//tbody//td[./descendant::a"
-                                            "[@href='/wiki/List_of_countries_and_dependencies_by_area']]/text()")[0]))
+    try:
+        area_raw = info_box[0].xpath("//tbody//tr[.//text()[contains(., 'Area')]]/following::tr[1]/*//text()")[1]
+    #try:
+    #    if name == "Taiwan":
+    #        area_raw = info_box[0].xpath("//*[@id='mw-content-text']/div[1]/table[1]/tbody/tr[36]/td/text()[1]")[0]
+    #    elif name == "Ireland":
+    #        area_raw = info_box[0].xpath("//*[@id='mw-content-text']/div[1]/table[1]/tbody/tr[8]/td/text()[1]")[0]
+    #    else:
+    #        area_raw = info_box[0].xpath("//tbody//td[./descendant::a"
+    #                                     "[@href='/wiki/List_of_countries_and_dependencies_by_area']]/text()")[0]
+    except:
+        print("Fatal Error in: " + name)
+    area_final = ""
+    if "mi" in area_raw:
+        flag = False
+        for word in area_raw.split():
+            if flag:
+                if word == "km":
+                    area_final += " "
+                area_final += word
+            if word == "mi":
+                flag = True
+    else:
+        area_final = area_raw
+    area_final = area_final.replace('(', '').replace(')', '').replace("'", '')
+    if "km" not in area_final:
+        area_final += " km"
+    res.add(fixing_prefix(area_final))
     return res
 
 
@@ -111,7 +158,7 @@ def get_capital(info_box, country_name):
         for entry in capital:
             res.add(fixing_prefix(entry))
         return res
-    except:
+    except IndexError:
         return None
 
 
@@ -123,11 +170,11 @@ def get_country_info(name):
     doc = lxml.html.fromstring(res.content)
     info_box = doc.xpath("//table[contains(@class, 'infobox')]")
     return {
-        "Area": get_area(info_box),
+        "Area": get_area(info_box, name),
         "Government Type": get_government_type(info_box),
         "President": get_president(info_box),
         "Prime Minister": get_pm(info_box),
-        "Population": get_population(info_box),
+        "Population": get_population(info_box, name),
         "Capital": get_capital(info_box, name)
     }
 
@@ -170,6 +217,14 @@ def question():
     graph.parse("ontology.nt", format="nt")
     sys.exit()
 
+
+for country in get_list_of_countries():
+    try:
+        get_country_info(country)
+        print("Success : " + country)
+    except IndexError:
+        print("FAILED: " + country)
+        break
 
 # Main
 # if (sys.argv[1] == "create"):
