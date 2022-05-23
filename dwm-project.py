@@ -100,17 +100,14 @@ def get_pm(info_box):
 
 def get_population(info_box, name):
     res = set()
-    population = info_box[0].xpath("//tbody/tr[.//text() = 'Population']/following::tr[1]"
-                                            "/*//text()")[1]
-    if population == '[8]':
-        print(name)
-        print("error")
+    population = info_box[0].xpath("//tbody/tr[.//text() = 'Population']/following::tr[1]/td//text()")[0]
+    if name == "Ireland":
+        population = info_box[0].xpath("//tbody/tr[.//text() = 'Population']//td//text()")[0]
+    population = population.lstrip()
+    population = population.split(" ")[0] if " " in population else population
     population = population.replace('(', '').replace(')', '').replace("'", '')
     res.add(fixing_prefix(population))
     print(population)
-    ##check czech republic
-    #res.add(fixing_prefix(info_box[0].xpath("//tbody/tr[./th/a[contains(text(), 'Population')]]/following::tr[1]"
-    #                                        "/td/text()")[0]))
     return res
 
 
@@ -118,7 +115,7 @@ def get_area(info_box, name):
     res = set()
     try:
         area_raw = info_box[0].xpath("//tbody//tr[.//text()[contains(., 'Area')]]/following::tr[1]/*//text()")[1]
-    #try:
+    # try:
     #    if name == "Taiwan":
     #        area_raw = info_box[0].xpath("//*[@id='mw-content-text']/div[1]/table[1]/tbody/tr[36]/td/text()[1]")[0]
     #    elif name == "Ireland":
