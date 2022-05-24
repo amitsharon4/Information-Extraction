@@ -7,8 +7,9 @@ import re
 # Part one - Create ontology
 WIKI_PREFIX = "http://en.wikipedia.org"
 EXAMPLE_PREFIX = "http://example.org/"
-MORE_THAN_ONE_CAPITAL = ["Bolivia", "Eswatini", "South Africa", "Malaysia", "Sri Lanka"]
-PROBLEMATIC_CAPITAL = []
+PROBLEMATIC_CAPITAL = {"Vatican City": "", "Tokelau": "", "Caribbean Netherlands": "Bonaire",
+                       "Antigua and Barbuda": "", "Mayotte": "Mamoudzou", "Macao": "", "Palestine": "Ramallah",
+                       "Hong Kong": "", "Singapore": "Singapore", "Switzerland": "Bern", "Western Sahara": "Laayoune"}
 graph = rdflib.Graph()
 countries_dict = {}
 
@@ -36,7 +37,9 @@ def get_wiki_url(name):
     if name == "Georgia":
         name = "Georgia (country)"
     if name == "Micronesia":
-        name = "Federated_States_of_Micronesia"
+        name = "Federated States of Micronesia"
+    if name == "Ireland":
+        name = "Republic of Ireland"
     name = name.replace(" ", "_")
     return requests.get(WIKI_PREFIX + "/wiki/" + name)
 
@@ -100,31 +103,23 @@ def get_pm(info_box):
 
 def get_population(info_box, name):
     res = set()
-    population = info_box[0].xpath("//tbody/tr[.//text() = 'Population']/following::tr[1]/td//text()")[0]
-    if name == "Ireland":
-        population = info_box[0].xpath("//tbody/tr[.//text() = 'Population']//td//text()")[0]
+    try:
+        population = info_box[0].xpath("//tbody/tr[.//text() = 'Population']/td//text()")[0]
+    except IndexError:
+        population = info_box[0].xpath("//tbody/tr[.//text() = 'Population']/following::tr[1]/td//text()")[0]
     population = population.lstrip()
     population = population.split(" ")[0] if " " in population else population
     population = population.replace('(', '').replace(')', '').replace("'", '')
     res.add(fixing_prefix(population))
-    print(population)
     return res
 
 
 def get_area(info_box, name):
     res = set()
     try:
-        area_raw = info_box[0].xpath("//tbody//tr[.//text()[contains(., 'Area')]]/following::tr[1]/*//text()")[1]
-    # try:
-    #    if name == "Taiwan":
-    #        area_raw = info_box[0].xpath("//*[@id='mw-content-text']/div[1]/table[1]/tbody/tr[36]/td/text()[1]")[0]
-    #    elif name == "Ireland":
-    #        area_raw = info_box[0].xpath("//*[@id='mw-content-text']/div[1]/table[1]/tbody/tr[8]/td/text()[1]")[0]
-    #    else:
-    #        area_raw = info_box[0].xpath("//tbody//td[./descendant::a"
-    #                                     "[@href='/wiki/List_of_countries_and_dependencies_by_area']]/text()")[0]
-    except:
-        print("Fatal Error in: " + name)
+        area_raw = info_box[0].xpath("//tbody//tr[.//text()[contains(., 'Area')]]//td/text()")[0]
+    except IndexError:
+        area_raw = info_box[0].xpath("//tbody//tr[.//text()[contains(., 'Area')]]/following::tr[1]//td/text()")[0]
     area_final = ""
     if "mi" in area_raw:
         flag = False
@@ -145,18 +140,17 @@ def get_area(info_box, name):
 
 
 def get_capital(info_box, country_name):
-    try:
-        if country_name in MORE_THAN_ONE_CAPITAL:
-            capital = info_box[0].xpath("//tbody//tr[./th[contains(text(), 'Capital')]]/td//"
-                                        "a[@title != 'Geographic coordinate system']/text()")
-        else:
-            capital = info_box[0].xpath("//tbody//tr[./th[contains(text(), 'Capital')]]/td/a[1]/text()")
-        res = set()
-        for entry in capital:
-            res.add(fixing_prefix(entry))
-        return res
-    except IndexError:
-        return None
+    if country_name in PROBLEMATIC_CAPITAL:
+        capital = PROBLEMATIC_CAPITAL[country_name]
+    else:
+        try:
+            capital = info_box[0].xpath("//tbody//tr[./th[contains(text(), 'Capital')]]/td//a[1]/text()")[0]
+        except IndexError:
+            capital = info_box[0].xpath("//tbody//tr[./th/a[contains(text(), 'Prefecture')]]/td//a[1]/text()")[0]
+    res = set()
+    res.add(fixing_prefix(capital))
+    print(capital)
+    return res
 
 
 """ Receives a name of a country and add to the dict the relevant info """
@@ -216,12 +210,7 @@ def question():
 
 
 for country in get_list_of_countries():
-    try:
-        get_country_info(country)
-        print("Success : " + country)
-    except IndexError:
-        print("FAILED: " + country)
-        break
+    get_country_info(country)
 
 # Main
 # if (sys.argv[1] == "create"):
