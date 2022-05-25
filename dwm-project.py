@@ -7,9 +7,16 @@ import re
 # Part one - Create ontology
 WIKI_PREFIX = "http://en.wikipedia.org"
 EXAMPLE_PREFIX = "http://example.org/"
-PROBLEMATIC_CAPITAL = {"Vatican City": "", "Tokelau": "", "Caribbean Netherlands": "Bonaire",
+PROBLEMATIC_CAPITAL = {"Vatican City": "", "Tokelau": "", "Caribbean Netherlands": "Willemstad",
                        "Antigua and Barbuda": "", "Mayotte": "Mamoudzou", "Macao": "", "Palestine": "Ramallah",
                        "Hong Kong": "", "Singapore": "Singapore", "Switzerland": "Bern", "Western Sahara": "Laayoune"}
+PROBLEMATIC_GOVERNMENT = {"Réunion": "Overseas departments and regions of France", "Guadeloupe":
+                          "Overseas departments and regions of France", "Martinique":
+                          "Overseas departments and regions of France", "French Guiana":
+                          "Overseas departments and regions of France", "Mayotte":
+                          "Overseas departments and regions of France", "Channel Islands": "British Crown Dependency",
+                          "Caribbean Netherlands": "Special Municipalities of the Netherlands"}
+PROBLEMATIC_AREA = {"Israel": "20770/22072"}
 graph = rdflib.Graph()
 countries_dict = {}
 
@@ -71,37 +78,53 @@ def get_personal_info(name):
     return [fixing_prefix(name), fixing_prefix(pob), fixing_prefix(dob)]
 
 
-def get_government_type(info_box):
-    gov = info_box[0].xpath("//tbody/tr[./descendant::*[contains(text(), 'Government')]]/td/a/text()")
+def get_government_type(info_box, curr_country):
     res = set()
-    for entry in gov:
-        res.add(fixing_prefix(entry))
+    try:
+        if curr_country in PROBLEMATIC_GOVERNMENT:
+            return res.add(fixing_prefix(PROBLEMATIC_GOVERNMENT[curr_country]))
+        gov = info_box[0].xpath("(//tbody/tr[./descendant::*[text()='Government']])[1]/td[1]/"
+                                "descendant::*/text()")
+        if gov and "Seal" in gov[0]:
+            gov = info_box[0].xpath("(//tbody/tr[./descendant::*[contains(text(), 'Government')]])[2]/td[1]/"
+                                    "descendant::*/text()")
+        if not gov:
+            gov = info_box[0].xpath("(//tbody/tr[./descendant::*[contains(text(), 'Government')]])[1]/td/a/span/text()")
+        gov_clean = []
+        for s in gov:
+            s = re.sub('[^a-zA-Z -]', '', s)
+            if s != '' and not s.isspace() and len(s) > 1:
+                gov_clean.append(s)
+        answer = " ".join(gov_clean)
+        res.add(fixing_prefix(answer))
+    except IndexError:
+        res.add(fixing_prefix(""))
     return res
 
 
 def get_president(info_box):
+    res = set()
     try:
-        president = info_box[0].xpath("//tbody/tr[./descendant::a[contains(text(), 'President')]]/td/a/text()")
-        res = set()
+        president = info_box[0].xpath("(//tbody/tr[./descendant::a[contains(text(), 'President')]])[1]/td/*[1]/text()")
         for entry in president:
             res.add(fixing_prefix(entry))
-        return res
-    except:
-        return None
+    except IndexError:
+        res.add(fixing_prefix(""))
+    return res
 
 
 def get_pm(info_box):
+    res = set()
     try:
         pm = info_box[0].xpath("//tbody/tr[./descendant::a[contains(text(), 'Prime Minister')]]/td/a/text()")
-        res = set()
         for entry in pm:
             res.add(fixing_prefix(entry))
-        return res
-    except:
-        return None
+    except IndexError:
+        res.add(fixing_prefix(""))
+    return res
 
 
-def get_population(info_box, name):
+def get_population(info_box):
     res = set()
     try:
         population = info_box[0].xpath("//tbody/tr[.//text() = 'Population']/td//text()")[0]
@@ -114,28 +137,33 @@ def get_population(info_box, name):
     return res
 
 
-def get_area(info_box, name):
+def get_area(info_box, curr_country):
     res = set()
-    try:
-        area_raw = info_box[0].xpath("//tbody//tr[.//text()[contains(., 'Area')]]//td/text()")[0]
-    except IndexError:
-        area_raw = info_box[0].xpath("//tbody//tr[.//text()[contains(., 'Area')]]/following::tr[1]//td/text()")[0]
-    area_final = ""
-    if "mi" in area_raw:
-        flag = False
-        for word in area_raw.split():
-            if flag:
-                if word == "km":
-                    area_final += " "
-                area_final += word
-            if word == "mi":
-                flag = True
+    if curr_country in PROBLEMATIC_AREA:
+        res.add(fixing_prefix(PROBLEMATIC_AREA[curr_country]))
     else:
-        area_final = area_raw
-    area_final = area_final.replace('(', '').replace(')', '').replace("'", '')
-    if "km" not in area_final:
-        area_final += " km"
-    res.add(fixing_prefix(area_final))
+        try:
+            area_raw = info_box[0].xpath("//tbody//tr[.//text()[contains(., 'Area')]]//td/text()")[0]
+        except IndexError:
+            area_raw = info_box[0].xpath("//tbody//tr[.//text()[contains(., 'Area')]]/following::tr[1]//td/text()")[0]
+        if not re.compile('[\d][,]?[km]?[ ]?').search(area_raw[0]):
+            area_raw = info_box[0].xpath("//tbody//tr[.//text()[contains(., 'Area')]]/following::tr[1]//td/text()")[0]
+        area_final = ""
+        if "mi" in area_raw:
+            flag = False
+            for word in area_raw.split():
+                if flag:
+                    if word == "km":
+                        area_final += " "
+                    area_final += word
+                if word == "mi":
+                    flag = True
+        else:
+            area_final = area_raw
+        area_final = area_final.replace('(', '').replace(')', '').replace("'", '')
+        if "km" not in area_final:
+            area_final += " km"
+        res.add(fixing_prefix(area_final))
     return res
 
 
@@ -149,7 +177,6 @@ def get_capital(info_box, country_name):
             capital = info_box[0].xpath("//tbody//tr[./th/a[contains(text(), 'Prefecture')]]/td//a[1]/text()")[0]
     res = set()
     res.add(fixing_prefix(capital))
-    print(capital)
     return res
 
 
@@ -162,16 +189,16 @@ def get_country_info(name):
     info_box = doc.xpath("//table[contains(@class, 'infobox')]")
     return {
         "Area": get_area(info_box, name),
-        "Government Type": get_government_type(info_box),
+        "Government Type": get_government_type(info_box, name),
         "President": get_president(info_box),
         "Prime Minister": get_pm(info_box),
-        "Population": get_population(info_box, name),
+        "Population": get_population(info_box),
         "Capital": get_capital(info_box, name)
     }
 
 
-def triplets_to_ontology(subject, property, object):  # subject=country/person ,property
-    graph.add((subject, property, object))
+def triplets_to_ontology(subject, relation, object):  # subject=country/person ,property
+    graph.add((subject, relation, object))
 
 
 """from  countries dict to triplets for ontology """
@@ -193,9 +220,9 @@ def to_triplets(dict):
 
 
 def create():
-    countries_list = get_list_of_countries()  # create countries list
-    for country in countries_list:
-        get_country_info(country)  # fill values in countries dictionary
+    countries = {}  # create countries list
+    for a_country in get_list_of_countries():
+        countries[a_country] = get_country_info(country)  # fill values in countries dictionary
     to_triplets(countries_dict)  # create ontology
     graph.serialize("ontology.nt", format="nt")
     sys.exit()
@@ -208,9 +235,10 @@ def question():
     graph.parse("ontology.nt", format="nt")
     sys.exit()
 
+get_country_info("Germany")
 
 for country in get_list_of_countries():
-    get_country_info(country)
+    print(get_country_info(country))
 
 # Main
 # if (sys.argv[1] == "create"):
