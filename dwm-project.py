@@ -124,12 +124,22 @@ def get_pm(info_box):
     return res
 
 
-def get_population(info_box):
+def get_population(info_box, curr_country):
     res = set()
     try:
         population = info_box[0].xpath("//tbody/tr[.//text() = 'Population']/td//text()")[0]
+        if not re.compile("[\d]+[,]?[(]?[)]?[']?[ ]?").search(population):
+            raise IndexError
     except IndexError:
-        population = info_box[0].xpath("//tbody/tr[.//text() = 'Population']/following::tr[1]/td//text()")[0]
+        population = [info_box[0].xpath("//tbody/tr[.//text() = 'Population']/following::tr[1]/td//text()")[0]]
+        try:
+            population = next(word for word in population if re.compile("[\d]+[,]?[(]?[)]?[']?[ ]?").search(word))
+        except StopIteration:
+            population = info_box[0].xpath("//tbody/tr[.//text() = 'Population']/following::tr[1]//*[not(self::img)]//text()")
+            try:
+                population = next(word for word in population if re.compile("[\d]+[,() ']?$").search(word))
+            except:
+                return res.add(fixing_prefix(""))
     population = population.lstrip()
     population = population.split(" ")[0] if " " in population else population
     population = population.replace('(', '').replace(')', '').replace("'", '')
@@ -192,7 +202,7 @@ def get_country_info(name):
         "Government Type": get_government_type(info_box, name),
         "President": get_president(info_box),
         "Prime Minister": get_pm(info_box),
-        "Population": get_population(info_box),
+        "Population": get_population(info_box, name),
         "Capital": get_capital(info_box, name)
     }
 
@@ -235,10 +245,10 @@ def question():
     graph.parse("ontology.nt", format="nt")
     sys.exit()
 
-get_country_info("Germany")
+get_country_info("Yemen")
 
 for country in get_list_of_countries():
-    print(get_country_info(country))
+    get_country_info(country)
 
 # Main
 # if (sys.argv[1] == "create"):
