@@ -19,12 +19,14 @@ PROBLEMATIC_GOVERNMENT = {"Réunion": "Overseas departments and regions of Franc
                           "Caribbean Netherlands": "Special Municipalities of the Netherlands"}
 PROBLEMATIC_NAME = {'Abdul Hamid': 'Abdul Hamid (politician)'}
 PROBLEMATIC_BIRTHDAY = {'Hasan Akhund': "c.1955 – c.1958", "Aziz Akhannouch": "1961", "Rashad al-Alimi": "1954",
-                        "Maeen Abdulmalik Saeed": "1976", "Mohamed Béavogui": "15-08-1953"}
+                        "Maeen Abdulmalik Saeed": "1976", "Mohamed Béavogui": "15-08-1953", 'Félix Moloua': "",
+                        'Cleopas Dlamini': "", "Mia Mottley": "", 'Carlos Vila Nova': ""}
 PROBLEMATIC_BIRTHPLACE = {'Hasan Akhund': "Pashmul", "Rashad al-Alimi": "Al-Aloom", 'Moustafa Madbouly': "",
                           'Myint Swe': "", "Maeen Abdulmalik Saeed": "Ta'izz", "Mohamed Béavogui": "Porédaka",
-                          'Ariel Henry': "", 'Bisher Al-Khasawneh': ""}
+                          'Ariel Henry': "", 'Bisher Al-Khasawneh': "", 'Félix Moloua': "", 'Cleopas Dlamini': "",
+                          'Carlos Vila Nova': "Neves"}
 PROBLEMATIC_AREA = {"Israel": "20770/22072"}
-PROBLEMATIC_PRESIDENT = {"Yemen": "Rashad al-Alimi"}
+PROBLEMATIC_PRESIDENT = {"Yemen": "Rashad al-Alimi", "Guam": "Joe Biden"}
 graph = rdflib.Graph()
 countries_dict = {}
 
@@ -95,7 +97,10 @@ def get_personal_info(name):
                                                                                         ")")[0].replace(" ", "_")
     except IndexError:
         born_text = born[0].xpath("./../td//text()")
-        dob = next(line for line in born_text if re.compile("[0-9]+").search(line))
+        try:
+            dob = next(line for line in born_text if re.compile("[0-9]+").search(line))
+        except StopIteration:
+            dob = ""
         dob = dob.replace(" ", "_")
     try:
         pob = PROBLEMATIC_BIRTHPLACE[name] if name in PROBLEMATIC_BIRTHPLACE else born[0].xpath("./../td//a/text()")[0]
@@ -140,7 +145,9 @@ def get_president(info_box, country_name):
         res.append(fixing_prefix(PROBLEMATIC_PRESIDENT[country_name]))
     else:
         try:
-            president = info_box[0].xpath("(//tbody/tr[./descendant::a[contains(text(), 'President')]])[1]/td/*[1]/text()")
+            #president = info_box[0].xpath("(//tbody/tr[./descendant::a[contains(text(), 'President')]])[1]/td/*[1]/text()")
+            president = info_box[0].xpath(
+                "(//tbody/tr[./descendant::a[./text()='President']])[1]/td/*[1]/text()")
             for entry in president:
                 if entry not in res:
                     res.append(fixing_prefix(entry))
@@ -233,7 +240,6 @@ def get_country_info(name):
     res = get_wiki_url(name)
     doc = lxml.html.fromstring(res.content)
     info_box = doc.xpath("//table[contains(@class, 'infobox')]")
-    #print("Getting info for: " + name)
     return {
         "President": get_president(info_box, name),
         "Prime Minister": get_pm(info_box),
@@ -256,11 +262,9 @@ def create():
                         personal_details = get_personal_info(person_name)
                         g.add((info[field][0], fixing_prefix("pob"), personal_details["POB"]))
                         g.add((info[field][0], fixing_prefix("dob"), personal_details["DOB"]))
-                if not info[field]:
-                    g.add((fixing_prefix(country), fixing_prefix(field), fixing_prefix('')))
-                else:
-                    g.add((fixing_prefix(country), fixing_prefix(field), fixing_prefix(info[field][0])))
-        #print("Done with country: " + country)
+                g.add((fixing_prefix(country), fixing_prefix(field), fixing_prefix(info[field][0])))
+            else:
+                g.add((fixing_prefix(country), fixing_prefix(field), fixing_prefix('')))
     g.serialize("ontology.nt", format="nt", encoding="utf-8")
     sys.exit()
 
