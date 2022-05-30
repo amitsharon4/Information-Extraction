@@ -3,6 +3,7 @@ import lxml.html
 import rdflib
 import sys
 import re
+import time
 
 # Part one - Create ontology
 WIKI_PREFIX = "http://en.wikipedia.org"
@@ -24,7 +25,7 @@ PROBLEMATIC_BIRTHDAY = {'Hasan Akhund': "c.1955 – c.1958", "Aziz Akhannouch": 
 PROBLEMATIC_BIRTHPLACE = {'Hasan Akhund': "Pashmul", "Rashad al-Alimi": "Al-Aloom", 'Moustafa Madbouly': "",
                           'Myint Swe': "", "Maeen Abdulmalik Saeed": "Ta'izz", "Mohamed Béavogui": "Porédaka",
                           'Ariel Henry': "", 'Bisher Al-Khasawneh': "", 'Félix Moloua': "", 'Cleopas Dlamini': "",
-                          'Carlos Vila Nova': "Neves"}
+                          'Carlos Vila Nova': "Neves", "Andrés Manuel López Obrador": "Tepetitán, Tabasco, Mexico"}
 PROBLEMATIC_AREA = {"Israel": "20770/22072"}
 PROBLEMATIC_PRESIDENT = {"Yemen": "Rashad al-Alimi", "Guam": "Joe Biden"}
 graph = rdflib.Graph()
@@ -104,6 +105,8 @@ def get_personal_info(name):
         dob = dob.replace(" ", "_")
     try:
         pob = PROBLEMATIC_BIRTHPLACE[name] if name in PROBLEMATIC_BIRTHPLACE else born[0].xpath("./../td//a/text()")[0]
+        if re.compile("[\d]").search(pob):
+            raise IndexError
     except IndexError:
         try:
             pob = born[0].xpath("./../td/text()")[-1]
@@ -276,6 +279,7 @@ def question():
     graph.parse("ontology.nt", format="nt")
     sys.exit()
 
+x = get_personal_info("Andrés_Manuel_López_Obrador")
 create()
 
 # Main
