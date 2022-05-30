@@ -22,11 +22,12 @@ PROBLEMATIC_NAME = {'Abdul Hamid': 'Abdul Hamid (politician)'}
 PROBLEMATIC_BIRTHDAY = {'Hasan Akhund': "c.1955 – c.1958", "Aziz Akhannouch": "1961", "Rashad al-Alimi": "1954",
                         "Maeen Abdulmalik Saeed": "1976", "Mohamed Béavogui": "15-08-1953", 'Félix Moloua': "",
                         'Cleopas Dlamini': "", "Mia Mottley": "", 'Carlos Vila Nova': ""}
-PROBLEMATIC_BIRTHPLACE = {'Hasan Akhund': "Pashmul", "Rashad al-Alimi": "Al-Aloom", 'Moustafa Madbouly': "",
-                          'Myint Swe': "", "Maeen Abdulmalik Saeed": "Ta'izz", "Mohamed Béavogui": "Porédaka",
+PROBLEMATIC_BIRTHPLACE = {'Hasan Akhund': "Afghanistan", "Rashad al-Alimi": "Yemen", 'Moustafa Madbouly': "",
+                          'Myint Swe': "", "Maeen Abdulmalik Saeed": "Yemen", "Mohamed Béavogui": "Guinea",
                           'Ariel Henry': "", 'Bisher Al-Khasawneh': "", 'Félix Moloua': "", 'Cleopas Dlamini': "",
-                          'Carlos Vila Nova': "Neves", "Andrés Manuel López Obrador": "Tepetitán, Tabasco, Mexico"}
-PROBLEMATIC_AREA = {"Israel": "20770/22072"}
+                          'Carlos Vila Nova': "São Tomé and Príncipe", "Andrés Manuel López Obrador":
+                              "Mexico"}
+PROBLEMATIC_AREA = {"Israel": "20770-22072"}
 PROBLEMATIC_PRESIDENT = {"Yemen": "Rashad al-Alimi", "Guam": "Joe Biden"}
 graph = rdflib.Graph()
 countries_dict = {}
@@ -82,7 +83,7 @@ def get_list_of_countries():
 """ Receives a name of a person and returns the place and date of birth """
 
 
-def get_personal_info(name):
+def get_personal_info(name, list_of_countries):
     if name in PROBLEMATIC_NAME:
         res = get_wiki_url(PROBLEMATIC_NAME[name])
     else:
@@ -92,28 +93,40 @@ def get_personal_info(name):
     if not info_box:
         return {"Name": fixing_prefix(name), "POB": fixing_prefix(""), "DOB": fixing_prefix("")}
     born = info_box[0].xpath("//table//th[contains(text(), 'Born')]")
+    if born:
+        born_text = born[0].xpath("./../td/descendant-or-self::*/text()")
     try:
         dob = PROBLEMATIC_BIRTHDAY[name] if name in PROBLEMATIC_BIRTHDAY else born[0].xpath("./../td//span["
                                                                                         "@class='bday']//text("
                                                                                         ")")[0].replace(" ", "_")
     except IndexError:
-        born_text = born[0].xpath("./../td//text()")
+        #born_text = born[0].xpath("./../td//text()")
         try:
             dob = next(line for line in born_text if re.compile("[0-9]+").search(line))
         except StopIteration:
             dob = ""
         dob = dob.replace(" ", "_")
-    try:
-        pob = PROBLEMATIC_BIRTHPLACE[name] if name in PROBLEMATIC_BIRTHPLACE else born[0].xpath("./../td//a/text()")[0]
-        if re.compile("[\d]").search(pob):
-            raise IndexError
-    except IndexError:
+    if name in PROBLEMATIC_BIRTHPLACE:
+        pob = PROBLEMATIC_BIRTHPLACE[name]
+    else:
         try:
-            pob = born[0].xpath("./../td/text()")[-1]
+            for entry in reversed(born_text):
+                entry = entry.replace(',', "").replace(',', "").replace('[', "").replace(']', "").replace('(', "").\
+                    replace(')', "")
+                entry = entry.lstrip()
+                if any(country in entry for country in list_of_countries):
+                    pob = entry
+                    break
+            #pob = PROBLEMATIC_BIRTHPLACE[name] if name in PROBLEMATIC_BIRTHPLACE else born[0].xpath("./../td//a/text()")[0]
             if re.compile("[\d]").search(pob):
-                pob = born[0].xpath("./../td/text()")[-2]
-        except IndexError:
-            pob = ""
+                raise IndexError
+        except:
+            try:
+                pob = born[0].xpath("./../td/text()")[-1]
+                if re.compile("[\d]").search(pob):
+                    pob = born[0].xpath("./../td/text()")[-2]
+            except IndexError:
+                pob = ""
     pob = pob[first_letter(pob):].replace(" ", "_")
     return {"Name": fixing_prefix(name), "POB": fixing_prefix(pob), "DOB": fixing_prefix(dob)}
 
@@ -135,8 +148,8 @@ def get_government_type(info_box, curr_country):
             s = re.sub('[^a-zA-Z -]', '', s)
             if s != '' and not s.isspace() and len(s) > 1:
                 gov_clean.append(s)
-        answer = " ".join(gov_clean)
-        res.append(fixing_prefix(answer))
+        for gov_type in gov_clean:
+            res.append(fixing_prefix(gov_type))
     except IndexError:
         res.append(fixing_prefix(""))
     return res
@@ -151,6 +164,9 @@ def get_president(info_box, country_name):
             #president = info_box[0].xpath("(//tbody/tr[./descendant::a[contains(text(), 'President')]])[1]/td/*[1]/text()")
             president = info_box[0].xpath(
                 "(//tbody/tr[./descendant::a[./text()='President']])[1]/td/*[1]/text()")
+            if not president:
+                president = info_box[0].xpath(
+                "(//tbody/tr[./descendant::a[./text()='President']])[1]/td/*[1]/*/text()")
             for entry in president:
                 if entry not in res:
                     res.append(fixing_prefix(entry))
@@ -216,9 +232,8 @@ def get_area(info_box, curr_country):
                     flag = True
         else:
             area_final = area_raw
-        area_final = area_final.replace('(', '').replace(')', '').replace("'", '')
-        if "km" not in area_final:
-            area_final += " km"
+        area_final = area_final.replace('(', '').replace(')', '').replace("'", '').replace("km", "")
+        area_final += "_km_squared"
     res.append(fixing_prefix(area_final))
     return res
 
@@ -254,20 +269,23 @@ def get_country_info(name):
 
 
 def create():
+    list_of_countries = get_list_of_countries()
     g = rdflib.Graph()
-    for country in get_list_of_countries():
+    for country in list_of_countries:
         info = get_country_info(country)
         for field in info.keys():
             if info[field]:
                 if field == "president_of" or field == "prime_minister_of":
                     person_name = remove_prefix(info[field][0])
                     if person_name != '':
-                        personal_details = get_personal_info(person_name)
+                        personal_details = get_personal_info(person_name, list_of_countries)
                         g.add((personal_details["POB"], fixing_prefix("pob"), info[field][0]))
                         g.add((personal_details["DOB"], fixing_prefix("dob"), info[field][0]))
-                g.add((fixing_prefix(info[field][0]), fixing_prefix(field), fixing_prefix(country)))
-            else:
-                g.add((fixing_prefix(country), fixing_prefix(field), fixing_prefix('')))
+                elif field == "government_type":
+                    for gov_type in info[field]:
+                        g.add((gov_type, fixing_prefix(field), fixing_prefix(country)))
+                else:
+                    g.add((info[field][0], fixing_prefix(field), fixing_prefix(country)))
     g.serialize("ontology.nt", format="nt", encoding="utf-8")
     sys.exit()
 
@@ -317,13 +335,13 @@ def question(question):
         ans = q_government_type(fix_country_q)
 
     elif "many" in q :
-        if "presidents" in q : #14. How many presidents were born in <country>?
+        #if "presidents" in q : #14. How many presidents were born in <country>?
             #x2= "_".join(q[5])
             #form2=x.rstrip(x[-1])
             #form1= "_".join(q[5])
             #fix_country_q = x.rstrip(x[-1])
             #ans = q_presidents_in_country(fix_country_q)
-        else: #12. How many <government_form1> are also <government_form2>?
+        #else: #12. How many <government_form1> are also <government_form2>?
             x = "_".join(q[6:])
             fix_country_q = x.rstrip(x[-1])
             #ans = How_many_government_form1_are_also_government_form2(form1, form2)
@@ -409,6 +427,9 @@ def q_president_or_prime_of_country(country,flag): #flag==1 president, else prim
         exit()
     fix_ans=str(str(list(ans)[0]).split("/")[-1]).replace(",", "").replace(")", "").replace('\'', "").replace("_", " ")
     return fix_ans
+
+
+create()
 
 # Main
 if len(sys.argv)==1:
