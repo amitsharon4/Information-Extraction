@@ -114,7 +114,7 @@ def get_personal_info(name, list_of_countries):
                 entry = entry.replace(',', "").replace(',', "").replace('[', "").replace(']', "").replace('(', ""). \
                     replace(')', "")
                 entry = entry.strip()
-                if any(country in entry for country in list_of_countries):
+                if any(country in entry for country in list_of_countries) or "USSR" in entry or "Soviet Union" in entry:
                     pob = entry
                     break
             # pob = PROBLEMATIC_BIRTHPLACE[name] if name in PROBLEMATIC_BIRTHPLACE else born[0].xpath("./../td//a/text()")[0]
