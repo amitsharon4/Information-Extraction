@@ -244,12 +244,12 @@ def get_country_info(name):
     doc = lxml.html.fromstring(res.content)
     info_box = doc.xpath("//table[contains(@class, 'infobox')]")
     return {
-        "President": get_president(info_box, name),
-        "Prime Minister": get_pm(info_box),
-        "Population": get_population(info_box, name),
-        "Area": get_area(info_box, name),
-        "Government Type": get_government_type(info_box, name),
-        "Capital": get_capital(info_box, name)
+        "president_of": get_president(info_box, name),
+        "prime_minister_of" : get_pm(info_box),
+        "population_of": get_population(info_box, name),
+        "area_of": get_area(info_box, name),
+        "government_type": get_government_type(info_box, name),
+        "capital_is": get_capital(info_box, name)
     }
 
 
@@ -259,13 +259,13 @@ def create():
         info = get_country_info(country)
         for field in info.keys():
             if info[field]:
-                if field == "President" or field == "Prime Minister":
+                if field == "president_of" or field == "prime_minister_of":
                     person_name = remove_prefix(info[field][0])
                     if person_name != '':
                         personal_details = get_personal_info(person_name)
-                        g.add((info[field][0], fixing_prefix("pob"), personal_details["POB"]))
-                        g.add((info[field][0], fixing_prefix("dob"), personal_details["DOB"]))
-                g.add((fixing_prefix(country), fixing_prefix(field), fixing_prefix(info[field][0])))
+                        g.add((personal_details["POB"], fixing_prefix("pob"), info[field][0]))
+                        g.add((personal_details["DOB"], fixing_prefix("dob"), info[field][0]))
+                g.add((fixing_prefix(info[field][0]), fixing_prefix(field), fixing_prefix(country)))
             else:
                 g.add((fixing_prefix(country), fixing_prefix(field), fixing_prefix('')))
     g.serialize("ontology.nt", format="nt", encoding="utf-8")
@@ -273,17 +273,157 @@ def create():
 
 
 # Part two - question
-def question():
-    q = sys.argv[2].replace(" ", "_")
-    graph = rdflib.Graph()
-    graph.parse("ontology.nt", format="nt")
-    sys.exit()
+def question(question):
+    q=question.split(" ")
+    ans=None
+    flag=0
+    if "president" in q or "prime" in q: #1,2,7-10
+        if "president" in q:
+            flag = 1
+            if "born?" not in q: #Who is the president of <country>?
+                x="_".join(q[5:])
+                fix_country_q= x.rstrip(x[-1])
+                ans=q_president_or_prime_of_country(fix_country_q,flag) #flag==1 president, else prime minister
+            else:#When/Where was the president of <country> born?
+                fix_country_q = "_".join(q[5:-1])
+                if "When" in q: #When was the president of <country> born?
+                    ans = q_president_or_prime_dob_pob(fix_country_q, flag,"dob")
+                else: #Where was the president of <country> born?
+                    ans = q_president_or_prime_dob_pob(fix_country_q, flag, "pob")
+        else:
+            if "born?" not in q: #Who is the prime minister of <country>?
+                x="_".join(q[6:])
+                fix_country_q= x.rstrip(x[-1])
+                ans=q_president_or_prime_of_country(fix_country_q,flag) #flag==1 president, else prime minister
+            else:#When/Where was the prime minister of <country> born?
+                fix_country_q = "_".join(q[6:-1])
+                if "When" in q: #When was the prime minister of <country> born?
+                    ans = q_president_or_prime_dob_pob(fix_country_q, flag,"dob")
+                else: #Where was the prime minister of <country> born?
+                    ans = q_president_or_prime_dob_pob(fix_country_q, flag, "pob")
 
-x = get_personal_info("Andrés_Manuel_López_Obrador")
-create()
+    elif "population" in q or "area" in q or "capital" in q: #What is the population of <country>? #3,4,6
+        x = "_".join(q[5:])
+        fix_country_q = x.rstrip(x[-1])
+        if "population" in question:
+            ans = q_mode(fix_country_q,"population_of")
+        elif "area" in question:
+            ans = q_mode(fix_country_q,"area_of")
+        else :
+            ans = q_mode(fix_country_q,"capital_is")
+    elif "form" in question: #5. What is the form of government in <country>?
+        x="_".join(q[7:])
+        fix_country_q = x.rstrip(x[-1])
+        ans = q_government_type(fix_country_q)
+
+    elif "many" in q :
+        if "presidents" in q : #14. How many presidents were born in <country>?
+            #x2= "_".join(q[5])
+            #form2=x.rstrip(x[-1])
+            #form1= "_".join(q[5])
+            #fix_country_q = x.rstrip(x[-1])
+            #ans = q_presidents_in_country(fix_country_q)
+        else: #12. How many <government_form1> are also <government_form2>?
+            x = "_".join(q[6:])
+            fix_country_q = x.rstrip(x[-1])
+            #ans = How_many_government_form1_are_also_government_form2(form1, form2)
+
+
+
+
+
+    return ans
+
+def q_presidents_in_country(country):
+    country_fix="<http://example.org/"+country+">"
+    q="d"
+    ans = g.query(q)
+    if len(ans) == 0:
+        print("no answer")
+        exit()
+    fix_ans=ans
+    return fix_ans
+
+def How_many_government_form1_are_also_government_form2(form1, form2):
+    q = "d"
+    ans = g.query(q)
+    if len(ans) == 0:
+        print("no answer")
+        exit()
+    fix_ans = ans
+
+def q_government_type(country):
+    country_fix="<http://example.org/"+country+">"
+    q = "select ?x where " \
+        "{ ?x <http://example.org/government_type>" + country_fix + " ." \
+                                                     "}"
+    ans = g.query(q)
+    if len(ans) == 0:
+        print("no answer")
+        exit()
+    fix_ans = str(str(list(ans)[0]).split("/")[-1]).replace(",", "").replace(")", "").replace('\'', "").replace("_", " ")
+    return fix_ans
+
+def q_mode(country,mode):
+    country_fix="<http://example.org/"+country+">"
+    q = "select ?x where " \
+        "{ ?x <http://example.org/"+mode+">" + country_fix + " ." \
+                                                     "}"
+    ans = g.query(q)
+    if len(ans) == 0:
+        print("no answer")
+        exit()
+    fix_ans = str(str(list(ans)[0]).split("/")[-1]).replace(",", "").replace(")", "").replace('\'', "").replace("_", " ")
+    return fix_ans
+
+
+def q_president_or_prime_dob_pob(country,flag,mob):
+    name=q_president_or_prime_of_country(country,flag)
+    name=name.replace(" ","_")
+    name_fix="<http://example.org/"+name+">"
+    q = "select ?x where "\
+        "{ ?x <http://example.org/"+mob+">" + name_fix + " ." \
+        "}"
+    ans = g.query(q)
+    if len(ans) == 0:
+        print("no answer")
+        exit()
+    fix_ans=str(str(list(ans)[0]).split("/")[-1]).replace(",", "").replace(")", "").replace('\'', "").replace("_", " ")
+    return fix_ans
+
+
+def q_president_or_prime_of_country(country,flag): #flag==1 president, else prime minister
+    country_fix="<http://example.org/"+country+">"
+    q_president= "select ?x where "\
+        "{ ?x <http://example.org/president_of>" +country_fix+ " ."\
+        "}"
+    q_prime="select ?x where "\
+        "{ ?x <http://example.org/prime_minister_of>" +country_fix+ " ."\
+        "}"
+    if flag==1:
+        ans=g.query(q_president)
+    else:
+        ans = g.query(q_prime)
+    if len(ans) == 0:
+        print("no answer")
+        exit()
+    fix_ans=str(str(list(ans)[0]).split("/")[-1]).replace(",", "").replace(")", "").replace('\'', "").replace("_", " ")
+    return fix_ans
 
 # Main
-# if (sys.argv[1] == "create"):
-#    create()
-# if (sys.argv[1] == "question"):
-#    question()
+if len(sys.argv)==1:
+    print("worng number of argument")
+    exit()
+if (sys.argv[1] == "create"):
+    create()
+    exit()
+if (sys.argv[1] == "question"):
+    if len(sys.argv) != 3:
+        print("worng number of arguments for question mode")
+        exit()
+    else:
+        g = rdflib.Graph()
+        g.parse("ontology.nt", format="nt")
+        ans=question(sys.argv[2])
+        print(ans)
+        exit()
