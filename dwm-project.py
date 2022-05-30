@@ -22,11 +22,12 @@ PROBLEMATIC_NAME = {'Abdul Hamid': 'Abdul Hamid (politician)'}
 PROBLEMATIC_BIRTHDAY = {'Hasan Akhund': "c.1955 – c.1958", "Aziz Akhannouch": "1961", "Rashad al-Alimi": "1954",
                         "Maeen Abdulmalik Saeed": "1976", "Mohamed Béavogui": "15-08-1953", 'Félix Moloua': "",
                         'Cleopas Dlamini': "", "Mia Mottley": "", 'Carlos Vila Nova': ""}
-PROBLEMATIC_BIRTHPLACE = {'Hasan Akhund': "Pashmul", "Rashad al-Alimi": "Al-Aloom", 'Moustafa Madbouly': "",
-                          'Myint Swe': "", "Maeen Abdulmalik Saeed": "Ta'izz", "Mohamed Béavogui": "Porédaka",
+PROBLEMATIC_BIRTHPLACE = {'Hasan Akhund': "Afghanistan", "Rashad al-Alimi": "Yemen", 'Moustafa Madbouly': "",
+                          'Myint Swe': "", "Maeen Abdulmalik Saeed": "Yemen", "Mohamed Béavogui": "Guinea",
                           'Ariel Henry': "", 'Bisher Al-Khasawneh': "", 'Félix Moloua': "", 'Cleopas Dlamini': "",
-                          'Carlos Vila Nova': "Neves", "Andrés Manuel López Obrador": "Tepetitán, Tabasco, Mexico"}
-PROBLEMATIC_AREA = {"Israel": "20770/22072"}
+                          'Carlos Vila Nova': "São Tomé and Príncipe","Patrice Talon": "Dahomey",
+                          "Andrés Manuel López Obrador": "Mexico"}
+PROBLEMATIC_AREA = {"Israel": "20770-22072"}
 PROBLEMATIC_PRESIDENT = {"Yemen": "Rashad al-Alimi", "Guam": "Joe Biden"}
 graph = rdflib.Graph()
 countries_dict = {}
@@ -39,7 +40,7 @@ def remove_prefix(fixed_name):
 
 
 def fixing_prefix(s):
-    s = s.lstrip()
+    s = s.strip()
     res = re.sub('\s+', '_', s)
     return rdflib.URIRef(f'{EXAMPLE_PREFIX}{res}')
 
@@ -82,7 +83,7 @@ def get_list_of_countries():
 """ Receives a name of a person and returns the place and date of birth """
 
 
-def get_personal_info(name):
+def get_personal_info(name, list_of_countries):
     if name in PROBLEMATIC_NAME:
         res = get_wiki_url(PROBLEMATIC_NAME[name])
     else:
@@ -92,28 +93,41 @@ def get_personal_info(name):
     if not info_box:
         return {"Name": fixing_prefix(name), "POB": fixing_prefix(""), "DOB": fixing_prefix("")}
     born = info_box[0].xpath("//table//th[contains(text(), 'Born')]")
+    if born:
+        born_text = born[0].xpath("./../td/descendant-or-self::*/text()")
     try:
         dob = PROBLEMATIC_BIRTHDAY[name] if name in PROBLEMATIC_BIRTHDAY else born[0].xpath("./../td//span["
-                                                                                        "@class='bday']//text("
-                                                                                        ")")[0].replace(" ", "_")
+                                                                                            "@class='bday']//text("
+                                                                                            ")")[0].replace(" ", "_")
     except IndexError:
-        born_text = born[0].xpath("./../td//text()")
+        # born_text = born[0].xpath("./../td//text()")
         try:
             dob = next(line for line in born_text if re.compile("[0-9]+").search(line))
         except StopIteration:
             dob = ""
         dob = dob.replace(" ", "_")
-    try:
-        pob = PROBLEMATIC_BIRTHPLACE[name] if name in PROBLEMATIC_BIRTHPLACE else born[0].xpath("./../td//a/text()")[0]
-        if re.compile("[\d]").search(pob):
-            raise IndexError
-    except IndexError:
+    if name in PROBLEMATIC_BIRTHPLACE:
+        pob = PROBLEMATIC_BIRTHPLACE[name]
+    else:
         try:
-            pob = born[0].xpath("./../td/text()")[-1]
+            for entry in reversed(born_text):
+                entry = entry.replace(',', "").replace(',', "").replace('[', "").replace(']', "").replace('(', ""). \
+                    replace(')', "")
+                entry = entry.strip()
+                if any(country in entry for country in list_of_countries) or "USSR" in entry or "Soviet Union" in entry:
+                    pob = entry
+                    break
+            # pob = PROBLEMATIC_BIRTHPLACE[name] if name in PROBLEMATIC_BIRTHPLACE else born[0].xpath("./../td//a/text()")[0]
             if re.compile("[\d]").search(pob):
-                pob = born[0].xpath("./../td/text()")[-2]
-        except IndexError:
-            pob = ""
+                raise IndexError
+        except:
+            try:
+                pob = born[0].xpath("./../td/text()")[-1]
+                if re.compile("[\d]").search(pob):
+                    pob = born[0].xpath("./../td/text()")[-2]
+            except IndexError:
+                pob = ""
+    pob = pob.strip()
     pob = pob[first_letter(pob):].replace(" ", "_")
     return {"Name": fixing_prefix(name), "POB": fixing_prefix(pob), "DOB": fixing_prefix(dob)}
 
@@ -135,8 +149,8 @@ def get_government_type(info_box, curr_country):
             s = re.sub('[^a-zA-Z -]', '', s)
             if s != '' and not s.isspace() and len(s) > 1:
                 gov_clean.append(s)
-        answer = " ".join(gov_clean)
-        res.append(fixing_prefix(answer))
+        for gov_type in gov_clean:
+            res.append(fixing_prefix(gov_type))
     except IndexError:
         res.append(fixing_prefix(""))
     return res
@@ -148,9 +162,12 @@ def get_president(info_box, country_name):
         res.append(fixing_prefix(PROBLEMATIC_PRESIDENT[country_name]))
     else:
         try:
-            #president = info_box[0].xpath("(//tbody/tr[./descendant::a[contains(text(), 'President')]])[1]/td/*[1]/text()")
+            # president = info_box[0].xpath("(//tbody/tr[./descendant::a[contains(text(), 'President')]])[1]/td/*[1]/text()")
             president = info_box[0].xpath(
                 "(//tbody/tr[./descendant::a[./text()='President']])[1]/td/*[1]/text()")
+            if not president:
+                president = info_box[0].xpath(
+                    "(//tbody/tr[./descendant::a[./text()='President']])[1]/td/*[1]/*/text()")
             for entry in president:
                 if entry not in res:
                     res.append(fixing_prefix(entry))
@@ -186,7 +203,7 @@ def get_population(info_box, curr_country):
                 population = next(word for word in population if re.compile("[\d]+[,() ']?$").search(word))
             except:
                 return res.append(fixing_prefix(""))
-    population = population.lstrip()
+    population = population.strip()
     population = population.split(" ")[0] if " " in population else population
     population = population.replace('(', '').replace(')', '').replace("'", '')
     res.append(fixing_prefix(population))
@@ -216,9 +233,9 @@ def get_area(info_box, curr_country):
                     flag = True
         else:
             area_final = area_raw
-        area_final = area_final.replace('(', '').replace(')', '').replace("'", '')
-        if "km" not in area_final:
-            area_final += " km"
+        area_final = area_final.replace('(', '').replace(')', '').replace("'", '').replace("km", "")
+        area_final = area_final.strip()
+        area_final += "_km_squared"
     res.append(fixing_prefix(area_final))
     return res
 
@@ -245,7 +262,7 @@ def get_country_info(name):
     info_box = doc.xpath("//table[contains(@class, 'infobox')]")
     return {
         "president_of": get_president(info_box, name),
-        "prime_minister_of" : get_pm(info_box),
+        "prime_minister_of": get_pm(info_box),
         "population_of": get_population(info_box, name),
         "area_of": get_area(info_box, name),
         "government_type": get_government_type(info_box, name),
@@ -254,20 +271,23 @@ def get_country_info(name):
 
 
 def create():
+    list_of_countries = get_list_of_countries()
     g = rdflib.Graph()
-    for country in get_list_of_countries():
+    for country in list_of_countries:
         info = get_country_info(country)
         for field in info.keys():
             if info[field]:
                 if field == "president_of" or field == "prime_minister_of":
                     person_name = remove_prefix(info[field][0])
                     if person_name != '':
-                        personal_details = get_personal_info(person_name)
+                        personal_details = get_personal_info(person_name, list_of_countries)
                         g.add((personal_details["POB"], fixing_prefix("pob"), info[field][0]))
                         g.add((personal_details["DOB"], fixing_prefix("dob"), info[field][0]))
-                g.add((fixing_prefix(info[field][0]), fixing_prefix(field), fixing_prefix(country)))
-            else:
-                g.add((fixing_prefix(country), fixing_prefix(field), fixing_prefix('')))
+                elif field == "government_type":
+                    for gov_type in info[field]:
+                        g.add((gov_type, fixing_prefix(field), fixing_prefix(country)))
+                else:
+                    g.add((info[field][0], fixing_prefix(field), fixing_prefix(country)))
     g.serialize("ontology.nt", format="nt", encoding="utf-8")
     sys.exit()
 
@@ -302,7 +322,7 @@ def question(question):
                 else: #Where was the prime minister of <country> born?
                     ans = q_president_or_prime_dob_pob(fix_exmaple(fix_country_q), flag, "pob")
 
-    elif "population" in q or "area" in q or "capital" in q: #What is the population of <country>? #3,4,6
+    elif "population" in q or "area" in q or "capital" in q:  # What is the population of <country>? #3,4,6
         x = "_".join(q[5:])
         fix_country_q = x.rstrip(x[-1])
         if "population" in question:
@@ -363,6 +383,7 @@ def fix_ans(q):
 
     return res
 
+
 def fix_exmaple(name):
     return "<http://example.org/" + name + ">"
 
@@ -411,8 +432,7 @@ def q_entity(entity):
         ans=fix_ans(ans_president)
         return "President and Prime Minister of" + ans
 
-
-
+      
 #14. How many presidents were born in <country>?
 def q_presidents_in_country(country):
     q= "select ?x where " \
@@ -456,7 +476,8 @@ def q_mode(country,mode):
     ans = g.query(q)
     return fix_ans(ans)
 
-#9. When was the prime minister/president of <country> born?
+
+ #9. When was the prime minister/president of <country> born?
 #10. Where was the prime minister/president of <country> born?
 def q_president_or_prime_dob_pob(country,flag,mob):
     name=q_president_or_prime_of_country(country,flag)
@@ -486,6 +507,7 @@ def q_president_or_prime_of_country(country,flag): #flag==1 president, else prim
 """  Main  """
 
 if len(sys.argv)==1:
+
     print("worng number of argument")
     exit()
 if (sys.argv[1] == "create"):
@@ -498,6 +520,6 @@ if (sys.argv[1] == "question"):
     else:
         g = rdflib.Graph()
         g.parse("ontology.nt", format="nt")
-        ans=question(sys.argv[2])
+        ans = question(sys.argv[2])
         print(ans)
         exit()
