@@ -544,7 +544,7 @@ def q_president_or_prime_of_country(country, flag):  # flag==1 president, else p
 
     return fix_ans(ans)
 
-
+create()
 """  Main  """
 
 if len(sys.argv) == 1:
