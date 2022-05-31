@@ -8,7 +8,7 @@ import re
 WIKI_PREFIX = "http://en.wikipedia.org"
 EXAMPLE_PREFIX = "http://example.org/"
 PROBLEMATIC_CAPITAL = {"Vatican City": "", "Tokelau": "", "Caribbean Netherlands": "Willemstad",
-                       "Antigua and Barbuda": "", "Mayotte": "Mamoudzou", "Macao": "", "Palestine": "Ramallah",
+                       "Antigua and Barbuda": "", "Mayotte": "Mamoudzou", "Macao": "", "State of Palestine": "Ramallah",
                        "Hong Kong": "", "Singapore": "Singapore", "Switzerland": "Bern", "Western Sahara": "Laayoune"}
 PROBLEMATIC_GOVERNMENT = {"Réunion": "Overseas departments and regions of France", "Guadeloupe":
     "Overseas departments and regions of France", "Martinique":
@@ -25,9 +25,13 @@ PROBLEMATIC_BIRTHPLACE = {'Hasan Akhund': "Afghanistan", "Rashad al-Alimi": "Yem
                           'Myint Swe': "", "Maeen Abdulmalik Saeed": "Yemen", "Mohamed Béavogui": "Guinea",
                           'Ariel Henry': "", 'Bisher Al-Khasawneh': "", 'Félix Moloua': "", 'Cleopas Dlamini': "",
                           'Carlos Vila Nova': "São Tomé and Príncipe","Patrice Talon": "Dahomey",
-                          "Andrés Manuel López Obrador": "Mexico"}
+                          "Andrés Manuel López Obrador": "Mexico", "Mahmoud Abbas": "Mandatory Palestine"}
 PROBLEMATIC_AREA = {"Israel": "20770-22072"}
 PROBLEMATIC_PRESIDENT = {"Yemen": "Rashad al-Alimi", "Guam": "Joe Biden"}
+PROBLEMATIC_COUNTRY_NAME = {"DR Congo": "Democratic Republic of the Congo", "Palestine": "State of Palestine",
+                            "Georgia": "Georgia (country)", "Micronesia": "Federated States of Micronesia", "Ireland":
+                                "Republic of Ireland", "Saint Helena": "Saint Helena, Ascension and Tristan da Cunha",
+                            "Congo": "Republic of the Congo"}
 graph = rdflib.Graph()
 countries_dict = {}
 
@@ -52,18 +56,13 @@ def first_letter(s):
 
 
 def get_wiki_url(name):
-    if name == "DR Congo":
-        name = "Democratic Republic of the Congo"
-    if name == "Palestine":
-        name = "State of Palestine"
-    if name == "Georgia":
-        name = "Georgia (country)"
-    if name == "Micronesia":
-        name = "Federated States of Micronesia"
-    if name == "Ireland":
-        name = "Republic of Ireland"
     name = name.replace(" ", "_")
     return requests.get(WIKI_PREFIX + "/wiki/" + name)
+
+
+def get_country_name_from_url(name):
+    doc = lxml.html.fromstring(get_wiki_url(name).content)
+    return doc.xpath("//h1/text()")[0]
 
 
 def get_list_of_countries():
@@ -73,8 +72,8 @@ def get_list_of_countries():
     for i in range(2, 235):
         name = doc.xpath(
             "//*[@id='mw-content-text']/div[1]/table/tbody/tr[" + str(i) + "]/td[1]/descendant::a[1]//text()")[0]
-        if name == "Congo":
-            name = "DR Congo"
+        if name in PROBLEMATIC_COUNTRY_NAME:
+            name = PROBLEMATIC_COUNTRY_NAME[name]
         countries.append(name)
     return countries
 
@@ -112,6 +111,8 @@ def get_personal_info(name, list_of_countries):
                 entry = entry.replace(',', "").replace(',', "").replace('[', "").replace(']', "").replace('(', ""). \
                     replace(')', "")
                 entry = entry.strip()
+                if entry in PROBLEMATIC_COUNTRY_NAME:
+                    entry = PROBLEMATIC_COUNTRY_NAME[entry]
                 if any(country in entry for country in list_of_countries) or "USSR" in entry or "Soviet Union" in entry:
                     pob = entry
                     break
@@ -159,7 +160,6 @@ def get_president(info_box, country_name):
         res.append(fixing_prefix(PROBLEMATIC_PRESIDENT[country_name]))
     else:
         try:
-            # president = info_box[0].xpath("(//tbody/tr[./descendant::a[contains(text(), 'President')]])[1]/td/*[1]/text()")
             president = info_box[0].xpath(
                 "(//tbody/tr[./descendant::a[./text()='President']])[1]/td/*[1]/text()")
             if not president:
@@ -183,7 +183,7 @@ def get_pm(info_box):
     return res
 
 
-def get_population(info_box):
+def get_population(info_box, name):
     res = []
     try:
         population = info_box[0].xpath("//tbody/tr[.//text() = 'Population']/td//text()")[0]
@@ -260,7 +260,7 @@ def get_country_info(name):
     return {
         "president_of": get_president(info_box, name),
         "prime_minister_of": get_pm(info_box),
-        "population_of": get_population(info_box),
+        "population_of": get_population(info_box, name),
         "area_of": get_area(info_box, name),
         "government_type": get_government_type(info_box, name),
         "capital_is": get_capital(info_box, name)
@@ -280,10 +280,11 @@ def create():
                         personal_details = get_personal_info(person_name, list_of_countries)
                         g.add((personal_details["POB"], fixing_prefix("pob"), info[field][0]))
                         g.add((personal_details["DOB"], fixing_prefix("dob"), info[field][0]))
-                elif field == "government_type":
+                if field == "government_type":
                     for gov_type in info[field]:
                         g.add((gov_type, fixing_prefix(field), fixing_prefix(country)))
-                g.add((info[field][0], fixing_prefix(field), fixing_prefix(country)))
+                else:
+                    g.add((info[field][0], fixing_prefix(field), fixing_prefix(country)))
     g.serialize("ontology.nt", format="nt", encoding="utf-8")
     sys.exit()
 
@@ -396,12 +397,7 @@ def q_mode(country, mode):
         "{ ?x <http://example.org/" + mode + ">" + country_fix + " ." \
                                                                  "}"
     ans = g.query(q)
-    if len(ans) == 0:
-        print("no answer")
-        exit()
-    fix_ans = str(str(list(ans)[0]).split("/")[-1]).replace(",", "").replace(")", "").replace('\'', "").replace("_",
-                                                                                                                " ")
-    return fix_ans
+    return handle_answer(ans)
 
 
 def q_president_or_prime_dob_pob(country, flag, mob):
@@ -431,7 +427,6 @@ def q_president_or_prime_of_country(country, flag):  # flag==1 president, else p
 
 
 create()
-
 # Main
 if len(sys.argv) == 1:
     print("Wrong number of arguments")
