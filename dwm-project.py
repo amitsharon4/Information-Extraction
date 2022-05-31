@@ -3,7 +3,6 @@ import lxml.html
 import rdflib
 import sys
 import re
-import time
 
 # Part one - Create ontology
 WIKI_PREFIX = "http://en.wikipedia.org"
@@ -100,7 +99,6 @@ def get_personal_info(name, list_of_countries):
                                                                                             "@class='bday']//text("
                                                                                             ")")[0].replace(" ", "_")
     except IndexError:
-        # born_text = born[0].xpath("./../td//text()")
         try:
             dob = next(line for line in born_text if re.compile("[0-9]+").search(line))
         except StopIteration:
@@ -117,7 +115,6 @@ def get_personal_info(name, list_of_countries):
                 if any(country in entry for country in list_of_countries) or "USSR" in entry or "Soviet Union" in entry:
                     pob = entry
                     break
-            # pob = PROBLEMATIC_BIRTHPLACE[name] if name in PROBLEMATIC_BIRTHPLACE else born[0].xpath("./../td//a/text()")[0]
             if re.compile("[\d]").search(pob):
                 raise IndexError
         except:
@@ -186,7 +183,7 @@ def get_pm(info_box):
     return res
 
 
-def get_population(info_box, curr_country):
+def get_population(info_box):
     res = []
     try:
         population = info_box[0].xpath("//tbody/tr[.//text() = 'Population']/td//text()")[0]
@@ -263,7 +260,7 @@ def get_country_info(name):
     return {
         "president_of": get_president(info_box, name),
         "prime_minister_of": get_pm(info_box),
-        "population_of": get_population(info_box, name),
+        "population_of": get_population(info_box),
         "area_of": get_area(info_box, name),
         "government_type": get_government_type(info_box, name),
         "capital_is": get_capital(info_box, name)
@@ -286,10 +283,18 @@ def create():
                 elif field == "government_type":
                     for gov_type in info[field]:
                         g.add((gov_type, fixing_prefix(field), fixing_prefix(country)))
-                else:
-                    g.add((info[field][0], fixing_prefix(field), fixing_prefix(country)))
+                g.add((info[field][0], fixing_prefix(field), fixing_prefix(country)))
     g.serialize("ontology.nt", format="nt", encoding="utf-8")
     sys.exit()
+
+
+def handle_answer(ans):
+    if len(ans) == 0:
+        print("no answer")
+        exit()
+    fix_ans = str(str(list(ans)[0]).split("/")[-1]).replace(",", "").replace(")", "").replace('\'', "").replace("_",
+                                                                                                                " ")
+    return fix_ans
 
 
 # Part two - question
@@ -407,12 +412,7 @@ def q_president_or_prime_dob_pob(country, flag, mob):
         "{ ?x <http://example.org/" + mob + ">" + name_fix + " ." \
                                                              "}"
     ans = g.query(q)
-    if len(ans) == 0:
-        print("no answer")
-        exit()
-    fix_ans = str(str(list(ans)[0]).split("/")[-1]).replace(",", "").replace(")", "").replace('\'', "").replace("_",
-                                                                                                                " ")
-    return fix_ans
+    return handle_answer(ans)
 
 
 def q_president_or_prime_of_country(country, flag):  # flag==1 president, else prime minister
@@ -427,26 +427,21 @@ def q_president_or_prime_of_country(country, flag):  # flag==1 president, else p
         ans = g.query(q_president)
     else:
         ans = g.query(q_prime)
-    if len(ans) == 0:
-        print("no answer")
-        exit()
-    fix_ans = str(str(list(ans)[0]).split("/")[-1]).replace(",", "").replace(")", "").replace('\'', "").replace("_",
-                                                                                                                " ")
-    return fix_ans
+    return handle_answer(ans)
 
 
 create()
 
 # Main
 if len(sys.argv) == 1:
-    print("worng number of argument")
+    print("Wrong number of arguments")
     exit()
-if (sys.argv[1] == "create"):
+if sys.argv[1] == "create":
     create()
     exit()
-if (sys.argv[1] == "question"):
+if sys.argv[1] == "question":
     if len(sys.argv) != 3:
-        print("worng number of arguments for question mode")
+        print("Wrong number of arguments for question mode")
         exit()
     else:
         g = rdflib.Graph()
