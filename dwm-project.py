@@ -283,154 +283,254 @@ def create():
     sys.exit()
 
 
-def handle_answer(ans):
-    if len(ans) == 0:
-        print("no answer")
-        exit()
-    fix_ans = str(str(list(ans)[0]).split("/")[-1]).replace(",", "").replace(")", "").replace('\'', "").replace("_",
-                                                                                                                " ")
-    return fix_ans
+"""  Part two - SPARQL queris  """
 
 
-# Part two - question
 def question(question):
     q = question.split(" ")
-    ans = None
     flag = 0
-    if "president" in q or "prime" in q:  # 1,2,7-10
+    if ("president" in q or "prime" in q) and "countries" not in q:  # 1,2,7-10
         if "president" in q:
             flag = 1
-            if "born?" not in q:  # Who is the president of <country>?
+            if "Who" in q:  # Who is the president of <country>?
                 x = "_".join(q[5:])
                 fix_country_q = x.rstrip(x[-1])
-                ans = q_president_or_prime_of_country(fix_country_q, flag)  # flag==1 president, else prime minister
+                ans = q_president_or_prime_of_country(fix_exmaple(fix_country_q),
+                                                      flag)  # flag==1 president, else prime minister
             else:  # When/Where was the president of <country> born?
                 fix_country_q = "_".join(q[5:-1])
                 if "When" in q:  # When was the president of <country> born?
-                    ans = q_president_or_prime_dob_pob(fix_country_q, flag, "dob")
+                    ans = q_president_or_prime_dob_pob(fix_exmaple(fix_country_q), flag, "dob")
                 else:  # Where was the president of <country> born?
-                    ans = q_president_or_prime_dob_pob(fix_country_q, flag, "pob")
+                    ans = q_president_or_prime_dob_pob(fix_exmaple(fix_country_q), flag, "pob")
         else:
-            if "born?" not in q:  # Who is the prime minister of <country>?
+            if "Who" in q:  # Who is the prime minister of <country>?
                 x = "_".join(q[6:])
                 fix_country_q = x.rstrip(x[-1])
-                ans = q_president_or_prime_of_country(fix_country_q, flag)  # flag==1 president, else prime minister
+                ans = q_president_or_prime_of_country(fix_exmaple(fix_country_q),
+                                                      flag)  # flag==1 president, else prime minister
             else:  # When/Where was the prime minister of <country> born?
                 fix_country_q = "_".join(q[6:-1])
                 if "When" in q:  # When was the prime minister of <country> born?
-                    ans = q_president_or_prime_dob_pob(fix_country_q, flag, "dob")
+                    ans = q_president_or_prime_dob_pob(fix_exmaple(fix_country_q), flag, "dob")
                 else:  # Where was the prime minister of <country> born?
-                    ans = q_president_or_prime_dob_pob(fix_country_q, flag, "pob")
+                    ans = q_president_or_prime_dob_pob(fix_exmaple(fix_country_q), flag, "pob")
 
-    elif "population" in q or "area" in q or "capital" in q:  # What is the population of <country>? #3,4,6
+    elif "population" in q or "area" in q or ("capital" in q and "countries" not in q) :  # What is the population/area/capital of <country>? #3,4,6
         x = "_".join(q[5:])
         fix_country_q = x.rstrip(x[-1])
         if "population" in question:
-            ans = q_mode(fix_country_q, "population_of")
+            ans = q_mode(fix_exmaple(fix_country_q), "population_of")
         elif "area" in question:
-            ans = q_mode(fix_country_q, "area_of")
+            ans = q_mode(fix_exmaple(fix_country_q), "area_of")
         else:
-            ans = q_mode(fix_country_q, "capital_is")
+            ans = q_mode(fix_exmaple(fix_country_q), "capital_is")
+
     elif "form" in question:  # 5. What is the form of government in <country>?
         x = "_".join(q[7:])
         fix_country_q = x.rstrip(x[-1])
-        ans = q_government_type(fix_country_q)
+        ans = q_government_type(fix_exmaple(fix_country_q))
 
     elif "many" in q:
-        # if "presidents" in q : #14. How many presidents were born in <country>?
-        # x2= "_".join(q[5])
-        # form2=x.rstrip(x[-1])
-        # form1= "_".join(q[5])
-        # fix_country_q = x.rstrip(x[-1])
-        # ans = q_presidents_in_country(fix_country_q)
-        # else: #12. How many <government_form1> are also <government_form2>?
+        if "presidents" in q:  # 14. How many presidents were born in <country>?
+            x = "_".join(q[6:])
+            fix_country_q = x.rstrip(x[-1])
+            ans = q_presidents_in_country(fix_exmaple(fix_country_q))
+        else:  # 12. How many <government_form1> are also <government_form2>?
+            many_i = q.index("many")
+            are_i = q.index("are")
+            also_i = q.index("also")
+            form1 = "_".join(q[many_i + 1:are_i])
+            x2 = "_".join(q[also_i + 1:])
+            form2 = x2.rstrip(x2[-1])
+            ans = How_many_government_form1_are_also_government_form2(fix_exmaple(form1), fix_exmaple(form2))
+
+    elif "countries" in q and "List" in q:  # 13List all countries whose capital name contains the string <str>
+        string = q[9]
+        ans = q_list_countries_contains_str(string)
+    elif "Who" in q and "president" not in q and "prime" not in q:  # 11. Who is <entity>?
+        x = "_".join(q[2:])
+        entity_fix = x.rstrip(x[-1])
+        ans = q_entity(fix_exmaple(entity_fix))
+
+    else:  # The capital of which countries is <capital>? לשנותתתתתתתתתתתתתתתתתת
         x = "_".join(q[6:])
-        fix_country_q = x.rstrip(x[-1])
-        # ans = How_many_government_form1_are_also_government_form2(form1, form2)
+        fix_q = x.rstrip(x[-1])
+        ans = q_the_president_of_which_countries(fix_exmaple(fix_q))
 
     return ans
 
 
+"""  fixing for questions  """
+
+
+def fix_ans(q):
+    if len(q) == 0:
+        print("no answer")
+        exit()
+    else:
+        res = []
+        for c in list(q):
+            fix_ans = str(str(list(c)[0]).split("/")[-1]).replace(",", "").replace(")", "").replace('\'', "").replace("_",
+                                                                                                                      " ")
+            res.append(fix_ans)
+
+        res.sort()
+        res = ", ".join(res)
+
+    return res
+
+
+def fix_exmaple(name):
+    return "<http://example.org/" + name + ">"
+
+
+"""  SPARQL queris  """
+
+
+# 13. List all countries whose capital name contains the string <str>
+def q_list_countries_contains_str(string):
+    q = "select ?x where " \
+        "{?y <http://example.org/capital_is> ?x ." \
+        "FILTER(CONTAINS(lcase(str(?y)), '" +string+ "')) . " \
+        "}"
+    ans = g.query(q)
+    return fix_ans(ans)
+
+
+# The president of which countries is <president>?
+def q_the_president_of_which_countries(name):
+    q = "select ?x where " \
+        "{ " + name + "<http://example.org/president_of> ?x ." \
+                      "}"
+
+    ans = g.query(q)
+    return fix_ans(ans)
+
+
+# 11. Who is <entity>?
+def q_entity(entity):
+    res=""
+    q_president_of = "select ?x where " \
+        "{ " + entity + "<http://example.org/president_of> ?x ." \
+                      "}"
+    q_prime_of = "select ?x where " \
+        "{ " + entity + "<http://example.org/prime_minister_of> ?x ." \
+                      "}"
+    ans_president = g.query(q_president_of)
+    ans_prime = g.query(q_prime_of)
+
+    if len(ans_prime) == 0 and len(ans_president) == 0:
+        print("no answer")
+        exit()
+    elif len(ans_prime) != 0 and len(ans_president) == 0:  # prime minister
+        ans = fix_ans(ans_prime).split(",")
+        for a in ans:
+            res+= "Prime Minister of " +a+", "
+        return res[:-2]
+    elif len(ans_prime) == 0 and len(ans_president) != 0:  # president
+        ans = fix_ans(ans_president).split(",")
+        for a in ans:
+            res+= "President of " + a+", "
+        return res[:-2]
+    else:
+        ans_1p = fix_ans(ans_president).split(",")
+        ans_2p = fix_ans(ans_prime).split(",")
+        for a in ans_1p:
+            res+= "President of " + a+", "
+        for a in ans_2p:
+            res+="Prime Minister of " +a+", "
+        return res[:-2]
+
+
+# 14. How many presidents were born in <country>?
 def q_presidents_in_country(country):
-    country_fix = "<http://example.org/" + country + ">"
-    q = "d"
+    q = "select ?x where " \
+        "{" + country + " <http://example.org/pob> ?x ." \
+        " ?x <http://example.org/president_of> ?y . " \
+        "}"
     ans = g.query(q)
-    if len(ans) == 0:
-        print("no answer")
-        exit()
-    fix_ans = ans
-    return fix_ans
+    num= fix_ans(ans).split(",")
+
+    return len(num)
 
 
+# 12. How many <government_form1> are also <government_form2>?
 def How_many_government_form1_are_also_government_form2(form1, form2):
-    q = "d"
-    ans = g.query(q)
-    if len(ans) == 0:
-        print("no answer")
-        exit()
-    fix_ans = ans
+    q_form1 = "select ?x where " \
+              "{ " + form1 + "<http://example.org/government_type> ?x ." \
+                             "}"
+    q_form2 = "select ?x where " \
+              "{ " + form2 + "<http://example.org/government_type> ?x ." \
+                             "}"
+    ans_form1 = g.query(q_form1)
+    ans_form2 = g.query(q_form2)
+    res_form1 = fix_ans(ans_form1)
+    res_form2 = fix_ans(ans_form2)
+    return list(set(res_form1) & set(res_form2))
 
 
+# 5. What is the form of government in <country>?
 def q_government_type(country):
-    country_fix = "<http://example.org/" + country + ">"
     q = "select ?x where " \
-        "{ ?x <http://example.org/government_type>" + country_fix + " ." \
-                                                                    "}"
+        "{ ?x <http://example.org/government_type>" + country + " ." \
+                                                                "}"
     ans = g.query(q)
-    if len(ans) == 0:
-        print("no answer")
-        exit()
-    fix_ans = str(str(list(ans)[0]).split("/")[-1]).replace(",", "").replace(")", "").replace('\'', "").replace("_",
-                                                                                                                " ")
-    return fix_ans
+    return fix_ans(ans)
 
 
+# 3. What is the population of <country>?
+# 4. What is the area of <country>?
+# 6. What is the capital of <country>?
 def q_mode(country, mode):
-    country_fix = "<http://example.org/" + country + ">"
     q = "select ?x where " \
-        "{ ?x <http://example.org/" + mode + ">" + country_fix + " ." \
-                                                                 "}"
+        "{ ?x <http://example.org/" + mode + ">" + country + " ." \
+                                                             "}"
+
     ans = g.query(q)
-    return handle_answer(ans)
+    return fix_ans(ans)
 
 
+# 9. When was the prime minister/president of <country> born?
+# 10. Where was the prime minister/president of <country> born?
 def q_president_or_prime_dob_pob(country, flag, mob):
     name = q_president_or_prime_of_country(country, flag)
     name = name.replace(" ", "_")
-    name_fix = "<http://example.org/" + name + ">"
     q = "select ?x where " \
-        "{ ?x <http://example.org/" + mob + ">" + name_fix + " ." \
-                                                             "}"
+        "{ ?x <http://example.org/" + mob + ">" + fix_exmaple(name) + " ." \
+                                                                      "}"
     ans = g.query(q)
-    return handle_answer(ans)
+    return fix_ans(ans)
 
 
+# 1. Who is the president of <country>?
+# 2. Who is the prime minister of <country>?
 def q_president_or_prime_of_country(country, flag):  # flag==1 president, else prime minister
-    country_fix = "<http://example.org/" + country + ">"
     q_president = "select ?x where " \
-                  "{ ?x <http://example.org/president_of>" + country_fix + " ." \
-                                                                           "}"
+                  "{ ?x <http://example.org/president_of>" + country + " ." \
+                                                                       "}"
     q_prime = "select ?x where " \
-              "{ ?x <http://example.org/prime_minister_of>" + country_fix + " ." \
-                                                                            "}"
+              "{ ?x <http://example.org/prime_minister_of>" + country + " ." \
+                                                                        "}"
     if flag == 1:
         ans = g.query(q_president)
     else:
         ans = g.query(q_prime)
-    return handle_answer(ans)
+
+    return fix_ans(ans)
 
 
-create()
-# Main
+"""  Main  """
+
 if len(sys.argv) == 1:
-    print("Wrong number of arguments")
+    print("worng number of argument")
     exit()
-if sys.argv[1] == "create":
+if (sys.argv[1] == "create"):
     create()
     exit()
-if sys.argv[1] == "question":
+if (sys.argv[1] == "question"):
     if len(sys.argv) != 3:
-        print("Wrong number of arguments for question mode")
+        print("worng number of arguments for question mode")
         exit()
     else:
         g = rdflib.Graph()
