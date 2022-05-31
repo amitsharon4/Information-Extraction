@@ -31,7 +31,7 @@ PROBLEMATIC_PRESIDENT = {"Yemen": "Rashad al-Alimi", "Guam": "Joe Biden"}
 PROBLEMATIC_COUNTRY_NAME = {"DR Congo": "Democratic Republic of the Congo", "Palestine": "State of Palestine",
                             "Georgia": "Georgia (country)", "Micronesia": "Federated States of Micronesia", "Ireland":
                                 "Republic of Ireland", "Saint Helena": "Saint Helena, Ascension and Tristan da Cunha",
-                            "Congo": "Republic of the Congo"}
+                            "Congo": "Republic of the Congo", "USSR": "Soviet Union"}
 graph = rdflib.Graph()
 countries_dict = {}
 
