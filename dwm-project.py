@@ -30,7 +30,6 @@ PROBLEMATIC_BIRTHPLACE = {'Hasan Akhund': "Afghanistan", "Rashad al-Alimi": "Yem
                           "Andrés Manuel López Obrador": "Mexico", "Mahmoud Abbas": "Mandatory Palestine"}
 PROBLEMATIC_AREA = {"Israel": "20770-22072"}
 PROBLEMATIC_PRESIDENT = {"Yemen": "Rashad al-Alimi", "Guam": "Joe Biden"}
-PROBLEMATIC_COUNTRY_NAME = {}
 graph = rdflib.Graph()
 countries_dict = {}
 
@@ -71,8 +70,6 @@ def get_list_of_countries():
     for i in range(2, 235):
         name = doc.xpath(
             "//*[@id='mw-content-text']/div[1]/table/tbody/tr[" + str(i) + "]/td[1]/descendant::a[1]//text()")[0]
-        if name in PROBLEMATIC_COUNTRY_NAME:
-            name = PROBLEMATIC_COUNTRY_NAME[name]
         countries.append(name)
     return countries
 
@@ -110,8 +107,6 @@ def get_personal_info(name, list_of_countries):
                 entry = entry.replace(',', "").replace(',', "").replace('[', "").replace(']', "").replace('(', ""). \
                     replace(')', "")
                 entry = entry.strip()
-                if entry in PROBLEMATIC_COUNTRY_NAME:
-                    entry = PROBLEMATIC_COUNTRY_NAME[entry]
                 if any(country in entry for country in list_of_countries) or "USSR" in entry or "Soviet Union" in entry:
                     pob = entry
                     break
