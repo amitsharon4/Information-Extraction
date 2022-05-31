@@ -331,7 +331,7 @@ def question(question):
                 else:  # Where was the prime minister of <country> born?
                     ans = q_president_or_prime_dob_pob(fix_exmaple(fix_country_q), flag, "pob")
 
-    elif "population" in q or "area" in q or "capital" in q:  # What is the population of <country>? #3,4,6
+    elif "population" in q or "area" in q or ("capital" in q and "countries" not in q) :  # What is the population/area/capital of <country>? #3,4,6
         x = "_".join(q[5:])
         fix_country_q = x.rstrip(x[-1])
         if "population" in question:
@@ -361,15 +361,14 @@ def question(question):
             ans = How_many_government_form1_are_also_government_form2(fix_exmaple(form1), fix_exmaple(form2))
 
     elif "countries" in q and "List" in q:  # 13List all countries whose capital name contains the string <str>
-        string = q[9].rstrip(q[9][-1])
+        string = q[9]
         ans = q_list_countries_contains_str(string)
     elif "Who" in q and "president" not in q and "prime" not in q:  # 11. Who is <entity>?
         x = "_".join(q[2:])
         entity_fix = x.rstrip(x[-1])
-        ans = (entity_fix)
+        ans = q_entity(fix_exmaple(entity_fix))
 
     else:  # The president of which countries is <president>?
-        print("g")
         x = "_".join(q[6:])
         fix_president_q = x.rstrip(x[-1])
         ans = q_the_president_of_which_countries(fix_exmaple(fix_president_q))
@@ -390,6 +389,7 @@ def fix_ans(q):
             fix_ans = str(str(list(c)[0]).split("/")[-1]).replace(",", "").replace(")", "").replace('\'', "").replace("_",
                                                                                                                       " ")
             res.append(fix_ans)
+
         res.sort()
         res = ", ".join(res)
 
@@ -405,10 +405,10 @@ def fix_exmaple(name):
 
 # 13. List all countries whose capital name contains the string <str>
 def q_list_countries_contains_str(string):
-    q = "select ?y where " \
-        "{?x <http://example.org/capital_is> ?y ." \
-        "FILTER(CONTAINS(lcase(str(?x)), '" + string + "')). " \
-                                                       "}"
+    q = "select ?x where " \
+        "{?y <http://example.org/capital_is> ?x." \
+        "FILTER(CONTAINS(lcase(str(?y)), '" +string+ "')) . " \
+        "}"
     ans = g.query(q)
     return fix_ans(ans)
 
@@ -418,41 +418,46 @@ def q_the_president_of_which_countries(name):
     q = "select ?x where " \
         "{ " + name + "<http://example.org/president_of> ?x ." \
                       "}"
+
     ans = g.query(q)
     return fix_ans(ans)
 
 
 # 11. Who is <entity>?
 def q_entity(entity):
-    q_prime = "select ?x where " \
-              "{ " + entity + "<http://example.org/prime_of> ?x ." \
-                              "}"
-    q_president = "select ?x where " \
-                  "{ " + entity + "<http://example.org/president_of> ?x ." \
-                                  "}"
-    ans_prime = g.query(q_prime)
-    ans_president = g.query(q_president)
+    q_president_of = "select ?x where " \
+        "{ " + entity + "<http://example.org/president_of> ?x ." \
+                      "}"
+    q_prime_of = "select ?x where " \
+        "{ " + entity + "<http://example.org/prime_of> ?x ." \
+                      "}"
+    ans_president = g.query(q_president_of)
+    ans_prime = g.query(q_prime_of)
+
     if len(ans_prime) == 0 and len(ans_president) == 0:
         print("no answer")
         exit()
     elif len(ans_prime) != 0 and len(ans_president) == 0:  # prime minister
-        ans = fix_ans(ans_prime)
-        return "Prime Minister of" + ans
+        ans = fix_ans("ans_prime")
+        return "Prime Minister of " + ans
     elif len(ans_prime) == 0 and len(ans_president) != 0:  # president
         ans = fix_ans(ans_president)
-        return "President of" + ans
+        return "President of " + ans
     else:
         ans = fix_ans(ans_president)
-        return "President and Prime Minister of" + ans
+        return "President and Prime Minister of " + ans
 
 
 # 14. How many presidents were born in <country>?
 def q_presidents_in_country(country):
     q = "select ?x where " \
-        "{ " + country + "<http://example.org/pob> ?x ." \
-                         "}"
+        "{" + country + " <http://example.org/pob> ?x ." \
+        " ?x <http://example.org/president_of> ?y . " \
+        "}"
     ans = g.query(q)
-    return len(fix_ans(ans))
+    num= fix_ans(ans).split(",")
+
+    return len(num)
 
 
 # 12. How many <government_form1> are also <government_form2>?
