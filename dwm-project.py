@@ -41,14 +41,6 @@ def remove_prefix(fixed_name):
     return re.sub('_', ' ', fixed_name[len(EXAMPLE_PREFIX):])
 
 
-def remove_wiki_prefix(uri):
-    return re.sub("/wiki/", "", uri)
-
-
-def is_wiki_uri(uri):
-    return '/wiki' in uri
-
-
 def fixing_prefix(s):
     s = s.strip()
     res = re.sub('\s+', '_', s)
@@ -78,11 +70,9 @@ def get_list_of_countries():
     countries = []
     for i in range(2, 235):
         name = doc.xpath(
-            "//*[@id='mw-content-text']/div[1]/table/tbody/tr[" + str(i) + "]/td[1]/descendant::a[1]//@href")[0]
+            "//*[@id='mw-content-text']/div[1]/table/tbody/tr[" + str(i) + "]/td[1]/descendant::a[1]//text()")[0]
         if name in PROBLEMATIC_COUNTRY_NAME:
             name = PROBLEMATIC_COUNTRY_NAME[name]
-        name = unquote(name)
-        name = remove_wiki_prefix(name)
         countries.append(name)
     return countries
 
@@ -116,22 +106,17 @@ def get_personal_info(name, list_of_countries):
         pob = PROBLEMATIC_BIRTHPLACE[name]
     else:
         try:
-            pob = born[0].xpath("./../td/descendant-or-self::a/@href")[-1]
-            if pob and is_wiki_uri(pob):
-                pob = unquote(pob)
-                pob = remove_wiki_prefix(pob)
-            else:
-                for entry in reversed(born_text):
-                    entry = entry.replace(',', "").replace(',', "").replace('[', "").replace(']', "").replace('(', ""). \
-                        replace(')', "")
-                    entry = entry.strip()
-                    if entry in PROBLEMATIC_COUNTRY_NAME:
-                        entry = PROBLEMATIC_COUNTRY_NAME[entry]
-                    if any(country in entry for country in list_of_countries) or "USSR" in entry or "Soviet Union" in entry:
-                        pob = entry
-                        break
-                if re.compile("[\d]").search(pob):
-                    raise IndexError
+            for entry in reversed(born_text):
+                entry = entry.replace(',', "").replace(',', "").replace('[', "").replace(']', "").replace('(', ""). \
+                    replace(')', "")
+                entry = entry.strip()
+                if entry in PROBLEMATIC_COUNTRY_NAME:
+                    entry = PROBLEMATIC_COUNTRY_NAME[entry]
+                if any(country in entry for country in list_of_countries) or "USSR" in entry or "Soviet Union" in entry:
+                    pob = entry
+                    break
+            if re.compile("[\d]").search(pob):
+                raise IndexError
         except:
             try:
                 pob = born[0].xpath("./../td/text()")[-1]
@@ -150,20 +135,17 @@ def get_government_type(info_box, curr_country):
         if curr_country in PROBLEMATIC_GOVERNMENT:
             return res.append(fixing_prefix(PROBLEMATIC_GOVERNMENT[curr_country]))
         gov = info_box[0].xpath("(//tbody/tr[./descendant::*[text()='Government']])[1]/td[1]/"
-                                "descendant::a/@href")
+                                "descendant::*/text()")
         if gov and "Seal" in gov[0]:
             gov = info_box[0].xpath("(//tbody/tr[./descendant::*[contains(text(), 'Government')]])[2]/td[1]/"
-                                    "descendant::a/@href")
+                                    "descendant::*/text()")
         if not gov:
-            gov = info_box[0].xpath("(//tbody/tr[./descendant::*[contains(text(), 'Government')]])[1]/td//@href")
+            gov = info_box[0].xpath("(//tbody/tr[./descendant::*[contains(text(), 'Government')]])[1]/td/a/span/text()")
         gov_clean = []
         for s in gov:
-            if is_wiki_uri(s):
-                s = unquote(s)
-                s = remove_wiki_prefix(s)
-                s = re.sub('[^a-zA-Z -]', '', s)
-                if s != '' and not s.isspace() and len(s) > 1:
-                    gov_clean.append(s)
+            s = re.sub('[^a-zA-Z -]', '', s)
+            if s != '' and not s.isspace() and len(s) > 1:
+                gov_clean.append(s)
         for gov_type in gov_clean:
             res.append(fixing_prefix(gov_type))
     except IndexError:
@@ -200,7 +182,7 @@ def get_pm(info_box):
     return res
 
 
-def get_population(info_box):
+def get_population(info_box, name):
     res = []
     try:
         population = info_box[0].xpath("//tbody/tr[.//text() = 'Population']/td//text()")[0]
@@ -249,7 +231,7 @@ def get_area(info_box, curr_country):
             area_final = area_raw
         area_final = area_final.replace('(', '').replace(')', '').replace("'", '').replace("km", "")
         area_final = area_final.strip()
-    area_final += "_km_squared"
+        area_final += "_km_squared"
     res.append(fixing_prefix(area_final))
     return res
 
@@ -260,11 +242,9 @@ def get_capital(info_box, country_name):
         capital = PROBLEMATIC_CAPITAL[country_name]
     else:
         try:
-            capital = info_box[0].xpath("//tbody//tr[./th[contains(text(), 'Capital')]]/td//a[1]/@href")[0]
+            capital = info_box[0].xpath("//tbody//tr[./th[contains(text(), 'Capital')]]/td//a[1]/text()")[0]
         except IndexError:
-            capital = info_box[0].xpath("//tbody//tr[./th/a[contains(text(), 'Prefecture')]]/td//a[1]/@href")[0]
-        capital = unquote(capital)
-        capital = remove_wiki_prefix(capital)
+            capital = info_box[0].xpath("//tbody//tr[./th/a[contains(text(), 'Prefecture')]]/td//a[1]/text()")[0]
     res.append(fixing_prefix(capital))
     return res
 
@@ -279,7 +259,7 @@ def get_country_info(name):
     return {
         "president_of": get_president(info_box, name),
         "prime_minister_of": get_pm(info_box),
-        "population_of": get_population(info_box),
+        "population_of": get_population(info_box, name),
         "area_of": get_area(info_box, name),
         "government_type": get_government_type(info_box, name),
         "capital_is": get_capital(info_box, name)
@@ -402,7 +382,12 @@ def q_government_type(country):
         "{ ?x <http://example.org/government_type>" + country_fix + " ." \
                                                                     "}"
     ans = g.query(q)
-    return handle_answer(ans)
+    if len(ans) == 0:
+        print("no answer")
+        exit()
+    fix_ans = str(str(list(ans)[0]).split("/")[-1]).replace(",", "").replace(")", "").replace('\'', "").replace("_",
+                                                                                                                " ")
+    return fix_ans
 
 
 def q_mode(country, mode):
