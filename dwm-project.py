@@ -3,7 +3,7 @@ import lxml.html
 import rdflib
 import sys
 import re
-from urllib.parse import unquote
+from urllib.parse import unquote, quote
 
 # Part one - Create ontology
 WIKI_PREFIX = "http://en.wikipedia.org"
@@ -40,7 +40,8 @@ def remove_prefix(fixed_name):
     return re.sub('_', ' ', fixed_name[len(EXAMPLE_PREFIX):])
 
 
-def remove_wiki_prefix(uri):
+def clean_uri(uri):
+    uri = unquote(uri)
     return re.sub("/wiki/", "", uri)
 
 
@@ -51,6 +52,8 @@ def is_wiki_uri(uri):
 def fixing_prefix(s):
     s = s.strip()
     res = re.sub('\s+', '_', s)
+    if re.search('"', res):
+        res = quote(res)
     return rdflib.URIRef(f'{EXAMPLE_PREFIX}{res}')
 
 
@@ -78,8 +81,7 @@ def get_list_of_countries():
     for i in range(2, 235):
         name = doc.xpath(
             "//*[@id='mw-content-text']/div[1]/table/tbody/tr[" + str(i) + "]/td[1]/descendant::a[1]//@href")[0]
-        name = unquote(name)
-        name = remove_wiki_prefix(name)
+        name = clean_uri(name)
         countries.append(name)
     return countries
 
@@ -115,8 +117,7 @@ def get_personal_info(name, list_of_countries):
         try:
             pob = born[0].xpath("./../td/descendant-or-self::a/@href")[-1]
             if pob and is_wiki_uri(pob):
-                pob = unquote(pob)
-                pob = remove_wiki_prefix(pob)
+                pob = clean_uri(pob)
             else:
                 for entry in reversed(born_text):
                     entry = entry.replace(',', "").replace(',', "").replace('[', "").replace(']', "").replace('(', ""). \
@@ -154,9 +155,8 @@ def get_government_type(info_box, curr_country):
         gov_clean = []
         for s in gov:
             if is_wiki_uri(s):
-                s = unquote(s)
-                s = remove_wiki_prefix(s)
-                s = re.sub('[^a-zA-Z -]', '', s)
+                s = clean_uri(s)
+                s = re.sub('[^a-zA-Z _-]', '', s)
                 if s != '' and not s.isspace() and len(s) > 1:
                     gov_clean.append(s)
         for gov_type in gov_clean:
@@ -169,29 +169,44 @@ def get_government_type(info_box, curr_country):
 def get_president(info_box, country_name):
     res = []
     if country_name in PROBLEMATIC_PRESIDENT:
-        res.append(fixing_prefix(PROBLEMATIC_PRESIDENT[country_name]))
+        president = PROBLEMATIC_PRESIDENT[country_name]
     else:
         try:
             president = info_box[0].xpath(
-                "(//tbody/tr[./descendant::a[./text()='President']])[1]/td/*[1]/text()")
+                "(//tbody/tr[./descendant::a[./text()='President']])[1]/td/a[1]/@href")[0]
             if not president:
                 president = info_box[0].xpath(
-                    "(//tbody/tr[./descendant::a[./text()='President']])[1]/td/*[1]/*/text()")
-            for entry in president:
-                if entry not in res:
-                    res.append(fixing_prefix(entry))
+                    "(//tbody/tr[./descendant::a[./text()='President']])[1]/td/*[1]/a/@href")[0]
+                if not president:
+                    president = info_box[0].xpath(
+                        "(//tbody/tr[./descendant::a[./text()='President']])[1]/td/*[1]/text()")
+                    if not president:
+                        president = info_box[0].xpath(
+                            "(//tbody/tr[./descendant::a[./text()='President']])[1]/td/*[1]/*/text()")
+                    for entry in president:
+                        if entry not in res:
+                            res.append(fixing_prefix(entry))
+                else:
+                    president = clean_uri(president)
+            else:
+                president = clean_uri(president)
         except IndexError:
-            res.append(fixing_prefix(""))
+            president = ""
+    res.append(fixing_prefix(president))
     return res
 
 
 def get_pm(info_box):
     res = []
     try:
-        pm = info_box[0].xpath("//tbody/tr[./descendant::a[contains(text(), 'Prime Minister')]]/td/a/text()")[0]
-        res.append(fixing_prefix(pm))
+        pm = info_box[0].xpath("//tbody/tr[./descendant::a[contains(text(), 'Prime Minister')]]/td/a/@href")[0]
+        if not pm:
+            pm = info_box[0].xpath("//tbody/tr[./descendant::a[contains(text(), 'Prime Minister')]]/td/a/text()")[0]
+        else:
+            pm = clean_uri(pm)
     except IndexError:
-        res.append(fixing_prefix(""))
+        pm = ""
+    res.append(fixing_prefix(pm))
     return res
 
 
@@ -258,8 +273,7 @@ def get_capital(info_box, country_name):
             capital = info_box[0].xpath("//tbody//tr[./th[contains(text(), 'Capital')]]/td//a[1]/@href")[0]
         except IndexError:
             capital = info_box[0].xpath("//tbody//tr[./th/a[contains(text(), 'Prefecture')]]/td//a[1]/@href")[0]
-        capital = unquote(capital)
-        capital = remove_wiki_prefix(capital)
+        capital = clean_uri(capital)
     res.append(fixing_prefix(capital))
     return res
 
@@ -299,7 +313,7 @@ def create():
                         g.add((gov_type, fixing_prefix(field), fixing_prefix(country)))
                 else:
                     g.add((info[field][0], fixing_prefix(field), fixing_prefix(country)))
-    g.serialize("ontology.nt", format="nt", encoding="utf-8")
+    g.serialize("ontology.nt", format="nt", encoding="utf-8", errors="ignore")
     sys.exit()
 
 
