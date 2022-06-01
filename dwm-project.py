@@ -437,9 +437,9 @@ def fix_entity(q):
 # 13. List all countries whose capital name contains the string <str>
 def q_list_countries_contains_str(string):
     q = "select ?x where " \
-        "{?y <http://example.org/capital_is> ?x ." \
-        "FILTER(CONTAINS(lcase(str(?y)), '" +string+ "')) . " \
-        "}"
+         "{?y <http://example.org/capital_is> ?x ." \
+         "FILTER(CONTAINS(strafter(lcase(str(?y)),'"+EXAMPLE_PREFIX+"'), '" +string+ "')) . " \
+         "}"
     ans = g.query(q)
     list_countries=fix_ans(ans,1)
     if len(list_countries) == 0:
@@ -499,11 +499,9 @@ def q_presidents_in_country(country):
         " ?x <http://example.org/president_of> ?y . " \
         "}"
     ans = g.query(q)
-
     num= fix_ans(ans,1).split(",")
     if len(num[0]) == 0 :
         return 0
-
     return len(num)
 
 
@@ -517,9 +515,10 @@ def How_many_government_form1_are_also_government_form2(form1, form2):
                              "}"
     ans_form1 = g.query(q_form1)
     ans_form2 = g.query(q_form2)
-    res_form1 = fix_ans(ans_form1,0)
-    res_form2 = fix_ans(ans_form2,0)
-    return list(set(res_form1) & set(res_form2))
+    res_form1 = fix_entity(ans_form1)
+    res_form2 = fix_entity(ans_form2)
+    num= list(set(res_form1) & set(res_form2))
+    return len(num)
 
 
 # 5. What is the form of government in <country>?
