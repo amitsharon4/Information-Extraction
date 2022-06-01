@@ -19,7 +19,7 @@ PROBLEMATIC_GOVERNMENT = {"Réunion": "Overseas departments and regions of Franc
                               "Overseas departments and regions of France",
                           "Channel Islands": "British Crown Dependency",
                           "Caribbean Netherlands": "Special Municipalities of the Netherlands"}
-PROBLEMATIC_NAME = {'Abdul Hamid': 'Abdul Hamid (politician)'}
+PROBLEMATIC_NAME = {'Abdul_Hamid': 'Abdul_Hamid_(politician)'}
 PROBLEMATIC_BIRTHDAY = {'Hasan Akhund': "c.1955 – c.1958", "Aziz Akhannouch": "1961", "Rashad al-Alimi": "1954",
                         "Maeen Abdulmalik Saeed": "1976", "Mohamed Béavogui": "15-08-1953", 'Félix Moloua': "",
                         'Cleopas Dlamini': "", "Mia Mottley": "", 'Carlos Vila Nova': ""}
@@ -27,11 +27,12 @@ PROBLEMATIC_BIRTHPLACE = {'Hasan Akhund': "Afghanistan", "Rashad al-Alimi": "Yem
                           'Myint Swe': "", "Maeen Abdulmalik Saeed": "Yemen", "Mohamed Béavogui": "Guinea",
                           'Ariel Henry': "", 'Bisher Al-Khasawneh': "", 'Félix Moloua': "", 'Cleopas Dlamini': "",
                           'Carlos Vila Nova': "São Tomé and Príncipe","Patrice Talon": "Dahomey",
-                          "Andrés Manuel López Obrador": "Mexico", "Mahmoud Abbas": "Mandatory Palestine"}
+                          "Andrés Manuel López Obrador": "Mexico", "Mahmoud Abbas": "Mandatory Palestine",
+                          "Volodymyr Zelenskyy": "Ukraine", "Michael D. Higgins": "Ireland", "Boris Johnson":
+                          "United_States", "Min Aung Hlaing": "Post-independence_Burma_(1948–1962)"}
 PROBLEMATIC_AREA = {"Israel": "20770-22072"}
 PROBLEMATIC_PRESIDENT = {"Yemen": "Rashad al-Alimi", "Guam": "Joe Biden"}
 graph = rdflib.Graph()
-countries_dict = {}
 
 """fixing for ontology"""
 
@@ -210,7 +211,7 @@ def get_pm(info_box):
     return res
 
 
-def get_population(info_box):
+def get_population(info_box, country):
     res = []
     try:
         population = info_box[0].xpath("//tbody/tr[.//text() = 'Population']/td//text()")[0]
@@ -230,6 +231,8 @@ def get_population(info_box):
     population = population.strip()
     population = population.split(" ")[0] if " " in population else population
     population = population.replace('(', '').replace(')', '').replace("'", '')
+    if country == "Eritrea":
+        population += "_million"
     res.append(fixing_prefix(population))
     return res
 
@@ -288,7 +291,7 @@ def get_country_info(name):
     return {
         "president_of": get_president(info_box, name),
         "prime_minister_of": get_pm(info_box),
-        "population_of": get_population(info_box),
+        "population_of": get_population(info_box, name),
         "area_of": get_area(info_box, name),
         "government_type": get_government_type(info_box, name),
         "capital_is": get_capital(info_box, name)
