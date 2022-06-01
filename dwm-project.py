@@ -70,11 +70,6 @@ def get_wiki_url(name):
     return requests.get(WIKI_PREFIX + "/wiki/" + name)
 
 
-def get_country_name_from_url(name):
-    doc = lxml.html.fromstring(get_wiki_url(name).content)
-    return doc.xpath("//h1/text()")[0]
-
-
 def get_list_of_countries():
     res = requests.get("https://en.wikipedia.org/wiki/List_of_countries_by_population_(United_Nations)")
     doc = lxml.html.fromstring(res.content)
@@ -171,29 +166,44 @@ def get_president(info_box, country_name):
     res = []
     if country_name in PROBLEMATIC_PRESIDENT:
         president = PROBLEMATIC_PRESIDENT[country_name]
+        res.append(fixing_prefix(president))
     else:
         try:
             president = info_box[0].xpath(
                 "(//tbody/tr[./descendant::a[./text()='President']])[1]/td/a[1]/@href")[0]
             if not president:
+                raise IndexError
+            president = clean_uri(president)
+            res.append(fixing_prefix(president))
+        except IndexError:
+            try:
                 president = info_box[0].xpath(
                     "(//tbody/tr[./descendant::a[./text()='President']])[1]/td/*[1]/a/@href")[0]
                 if not president:
+                    raise IndexError
+                president = clean_uri(president)
+                res.append(fixing_prefix(president))
+            except IndexError:
+                try:
                     president = info_box[0].xpath(
                         "(//tbody/tr[./descendant::a[./text()='President']])[1]/td/*[1]/text()")
                     if not president:
-                        president = info_box[0].xpath(
-                            "(//tbody/tr[./descendant::a[./text()='President']])[1]/td/*[1]/*/text()")
+                        raise IndexError
                     for entry in president:
                         if entry not in res:
                             res.append(fixing_prefix(entry))
-                else:
-                    president = clean_uri(president)
-            else:
-                president = clean_uri(president)
-        except IndexError:
-            president = ""
-    res.append(fixing_prefix(president))
+                except IndexError:
+                    try:
+                        president = info_box[0].xpath(
+                            "(//tbody/tr[./descendant::a[./text()='President']])[1]/td/*[1]/*/text()")
+                        if not president:
+                            raise IndexError
+                        for entry in president:
+                            if entry not in res:
+                                res.append(fixing_prefix(entry))
+                    except IndexError:
+                        president = ""
+                        res.append(fixing_prefix(president))
     return res
 
 
@@ -409,7 +419,7 @@ def fix_ans(q,flag):
     else:
         res = []
         for c in list(q):
-            fix = str(str(list(c)[0]).split("/")[-1]).replace(")", "").replace('\'', "").replace("_", " ")
+            fix = str(str(list(c)[0]).split("/")[-1]).replace('\'', "").replace("_", " ")
 
             res.append(fix)
 
@@ -429,7 +439,7 @@ def fix_entity(q):
     else:
         res = []
         for c in list(q):
-            fix = str(str(list(c)[0]).split("/")[-1]).replace(")", "").replace('\'', "").replace("_", " ")
+            fix = str(str(list(c)[0]).split("/")[-1]).replace('\'', "").replace("_", " ")
             res.append(fix)
             res.sort()
         return res
