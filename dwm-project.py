@@ -303,6 +303,7 @@ def create():
     sys.exit()
 
 
+
 """  Part two - SPARQL queris  """
 
 
@@ -373,10 +374,10 @@ def question(question):
         entity_fix = x.rstrip(x[-1])
         ans = q_entity(fix_exmaple(entity_fix))
 
-    else:  # The capital of which countries is <capital>? לשנותתתתתתתתתתתתתתתתתת
+    else:  # The capital of which countries is <capital>?
         x = "_".join(q[6:])
         fix_q = x.rstrip(x[-1])
-        ans = q_the_president_of_which_countries(fix_exmaple(fix_q))
+        ans = q_the_capital_of_which_countries(fix_exmaple(fix_q))
 
     return ans
 
@@ -384,16 +385,16 @@ def question(question):
 """  fixing for questions  """
 
 
-def fix_ans(q):
-    if len(q) == 0:
+def fix_ans(q,flag):
+    if len(q) == 0 and flag==0:
         print("no answer")
         exit()
     else:
         res = []
         for c in list(q):
-            fix_ans = str(str(list(c)[0]).split("/")[-1]).replace(",", "").replace(")", "").replace('\'', "").replace("_",
-                                                                                                                      " ")
-            res.append(fix_ans)
+            fix = str(str(list(c)[0]).split("/")[-1]).replace(")", "").replace('\'', "").replace("_", " ")
+
+            res.append(fix)
 
         res.sort()
         res = ", ".join(res)
@@ -404,6 +405,17 @@ def fix_ans(q):
 def fix_exmaple(name):
     return "<http://example.org/" + name + ">"
 
+def fix_entity(q):
+    if len(q) == 0:
+        print("no answer")
+        exit()
+    else:
+        res = []
+        for c in list(q):
+            fix = str(str(list(c)[0]).split("/")[-1]).replace(")", "").replace('\'', "").replace("_", " ")
+            res.append(fix)
+            res.sort()
+        return res
 
 """  SPARQL queris  """
 
@@ -415,17 +427,20 @@ def q_list_countries_contains_str(string):
         "FILTER(CONTAINS(lcase(str(?y)), '" +string+ "')) . " \
         "}"
     ans = g.query(q)
-    return fix_ans(ans)
+    list_countries=fix_ans(ans,1)
+    if len(list_countries) == 0:
+        return "No countries"
+    return list_countries
 
 
-# The president of which countries is <president>?
-def q_the_president_of_which_countries(name):
+# The capital of which countries is <capital>?
+def q_the_capital_of_which_countries(name):
     q = "select ?x where " \
-        "{ " + name + "<http://example.org/president_of> ?x ." \
+        "{ " + name + "<http://example.org/capital_is> ?x ." \
                       "}"
 
     ans = g.query(q)
-    return fix_ans(ans)
+    return fix_ans(ans,0)
 
 
 # 11. Who is <entity>?
@@ -444,18 +459,18 @@ def q_entity(entity):
         print("no answer")
         exit()
     elif len(ans_prime) != 0 and len(ans_president) == 0:  # prime minister
-        ans = fix_ans(ans_prime).split(",")
+        ans = fix_entity(ans_prime)
         for a in ans:
             res+= "Prime Minister of " +a+", "
         return res[:-2]
     elif len(ans_prime) == 0 and len(ans_president) != 0:  # president
-        ans = fix_ans(ans_president).split(",")
+        ans = fix_entity(ans_president)
         for a in ans:
             res+= "President of " + a+", "
         return res[:-2]
     else:
-        ans_1p = fix_ans(ans_president).split(",")
-        ans_2p = fix_ans(ans_prime).split(",")
+        ans_1p = fix_entity(ans_president)
+        ans_2p = fix_entity(ans_prime)
         for a in ans_1p:
             res+= "President of " + a+", "
         for a in ans_2p:
@@ -470,7 +485,10 @@ def q_presidents_in_country(country):
         " ?x <http://example.org/president_of> ?y . " \
         "}"
     ans = g.query(q)
-    num= fix_ans(ans).split(",")
+
+    num= fix_ans(ans,1).split(",")
+    if len(num[0]) == 0 :
+        return 0
 
     return len(num)
 
@@ -485,8 +503,8 @@ def How_many_government_form1_are_also_government_form2(form1, form2):
                              "}"
     ans_form1 = g.query(q_form1)
     ans_form2 = g.query(q_form2)
-    res_form1 = fix_ans(ans_form1)
-    res_form2 = fix_ans(ans_form2)
+    res_form1 = fix_ans(ans_form1,0)
+    res_form2 = fix_ans(ans_form2,0)
     return list(set(res_form1) & set(res_form2))
 
 
@@ -496,7 +514,7 @@ def q_government_type(country):
         "{ ?x <http://example.org/government_type>" + country + " ." \
                                                                 "}"
     ans = g.query(q)
-    return fix_ans(ans)
+    return fix_ans(ans,0)
 
 
 # 3. What is the population of <country>?
@@ -508,7 +526,7 @@ def q_mode(country, mode):
                                                              "}"
 
     ans = g.query(q)
-    return fix_ans(ans)
+    return fix_ans(ans,0)
 
 
 # 9. When was the prime minister/president of <country> born?
@@ -520,7 +538,7 @@ def q_president_or_prime_dob_pob(country, flag, mob):
         "{ ?x <http://example.org/" + mob + ">" + fix_exmaple(name) + " ." \
                                                                       "}"
     ans = g.query(q)
-    return fix_ans(ans)
+    return fix_ans(ans,0)
 
 
 # 1. Who is the president of <country>?
@@ -537,7 +555,7 @@ def q_president_or_prime_of_country(country, flag):  # flag==1 president, else p
     else:
         ans = g.query(q_prime)
 
-    return fix_ans(ans)
+    return fix_ans(ans,0)
 
 
 """  Main  """
@@ -558,3 +576,6 @@ if sys.argv[1] == "question":
         ans = question(sys.argv[2])
         print(ans)
         exit()
+else:
+    print("Wrong argument")
+    exit()
